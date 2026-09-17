@@ -486,8 +486,10 @@ $RECYCLE.BIN/
 # Project-specific secrets - never commit these
 .env
 .env.*
+*.env
 !.env.example
 appsettings.*.Local.json
 appsettings.Local.json
 *.secrets.json
 secrets.json
+secrets-test.env

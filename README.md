@@ -35,6 +35,7 @@ Khi chạy ở môi trường Development, Swagger UI sẽ khả dụng để kh
 - [`docs/database-design.md`](docs/database-design.md) — Thiết kế cơ sở dữ liệu (ERD)
 - [`docs/architecture.md`](docs/architecture.md) — Kiến trúc phân lớp (Domain/Application/Infrastructure/Api) và chiều phụ thuộc
 - [`docs/adr/0001-kien-truc-du-an.md`](docs/adr/0001-kien-truc-du-an.md) — ADR: lý do chọn kiến trúc, các phương án đã cân nhắc, hệ quả
+- [`docs/solution-structure.md`](docs/solution-structure.md) — Cấu trúc solution thực tế: danh sách project, trách nhiệm, sơ đồ phụ thuộc
 
 ## Cấu hình bí mật (secrets)
 

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SalesInventory.Api.Data;
 
@@ -11,9 +12,11 @@ using SalesInventory.Api.Data;
 namespace SalesInventory.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260927153520_SeedInitialData")]
+    partial class SeedInitialData
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -61,18 +64,6 @@ namespace SalesInventory.Api.Migrations
                             Id = 3,
                             Description = "Đồ dùng gia đình",
                             Name = "Gia dụng"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Description = "Quần áo, giày dép, phụ kiện thời trang",
-                            Name = "Thời trang"
-                        },
-                        new
-                        {
-                            Id = 5,
-                            Description = "Thực phẩm, đồ uống",
-                            Name = "Thực phẩm"
                         });
                 });
 
@@ -251,39 +242,6 @@ namespace SalesInventory.Api.Migrations
                             Price = 850000m,
                             Sku = "SKU-GD-001",
                             StockQuantity = 30,
-                            SupplierId = 1
-                        },
-                        new
-                        {
-                            Id = 6,
-                            CategoryId = 4,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Áo thun nam",
-                            Price = 150000m,
-                            Sku = "SKU-TT-001",
-                            StockQuantity = 80,
-                            SupplierId = 1
-                        },
-                        new
-                        {
-                            Id = 7,
-                            CategoryId = 4,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Giày thể thao",
-                            Price = 750000m,
-                            Sku = "SKU-TT-002",
-                            StockQuantity = 40,
-                            SupplierId = 1
-                        },
-                        new
-                        {
-                            Id = 8,
-                            CategoryId = 5,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Mì gói Hảo Hảo (thùng)",
-                            Price = 120000m,
-                            Sku = "SKU-TP-001",
-                            StockQuantity = 150,
                             SupplierId = 1
                         });
                 });

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SalesInventory.Api.Data;
 
@@ -11,9 +12,11 @@ using SalesInventory.Api.Data;
 namespace SalesInventory.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260927153321_InitialCreate")]
+    partial class InitialCreate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -42,38 +45,6 @@ namespace SalesInventory.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Categories");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Description = "Các sản phẩm điện tử, thiết bị công nghệ",
-                            Name = "Đồ điện tử"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Description = "Dụng cụ và vật tư văn phòng",
-                            Name = "Văn phòng phẩm"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Description = "Đồ dùng gia đình",
-                            Name = "Gia dụng"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Description = "Quần áo, giày dép, phụ kiện thời trang",
-                            Name = "Thời trang"
-                        },
-                        new
-                        {
-                            Id = 5,
-                            Description = "Thực phẩm, đồ uống",
-                            Name = "Thực phẩm"
-                        });
                 });
 
             modelBuilder.Entity("SalesInventory.Api.Models.Customer", b =>
@@ -196,96 +167,6 @@ namespace SalesInventory.Api.Migrations
                     b.HasIndex("SupplierId");
 
                     b.ToTable("Products");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            CategoryId = 1,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Bàn phím cơ",
-                            Price = 550000m,
-                            Sku = "SKU-DT-001",
-                            StockQuantity = 50,
-                            SupplierId = 1
-                        },
-                        new
-                        {
-                            Id = 2,
-                            CategoryId = 1,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Chuột không dây",
-                            Price = 250000m,
-                            Sku = "SKU-DT-002",
-                            StockQuantity = 100,
-                            SupplierId = 1
-                        },
-                        new
-                        {
-                            Id = 3,
-                            CategoryId = 2,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Bút bi Thiên Long",
-                            Price = 5000m,
-                            Sku = "SKU-VPP-001",
-                            StockQuantity = 500,
-                            SupplierId = 1
-                        },
-                        new
-                        {
-                            Id = 4,
-                            CategoryId = 2,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Giấy in A4",
-                            Price = 65000m,
-                            Sku = "SKU-VPP-002",
-                            StockQuantity = 200,
-                            SupplierId = 1
-                        },
-                        new
-                        {
-                            Id = 5,
-                            CategoryId = 3,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Nồi cơm điện",
-                            Price = 850000m,
-                            Sku = "SKU-GD-001",
-                            StockQuantity = 30,
-                            SupplierId = 1
-                        },
-                        new
-                        {
-                            Id = 6,
-                            CategoryId = 4,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Áo thun nam",
-                            Price = 150000m,
-                            Sku = "SKU-TT-001",
-                            StockQuantity = 80,
-                            SupplierId = 1
-                        },
-                        new
-                        {
-                            Id = 7,
-                            CategoryId = 4,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Giày thể thao",
-                            Price = 750000m,
-                            Sku = "SKU-TT-002",
-                            StockQuantity = 40,
-                            SupplierId = 1
-                        },
-                        new
-                        {
-                            Id = 8,
-                            CategoryId = 5,
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Mì gói Hảo Hảo (thùng)",
-                            Price = 120000m,
-                            Sku = "SKU-TP-001",
-                            StockQuantity = 150,
-                            SupplierId = 1
-                        });
                 });
 
             modelBuilder.Entity("SalesInventory.Api.Models.PurchaseOrder", b =>
@@ -367,14 +248,6 @@ namespace SalesInventory.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Suppliers");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Name = "Nhà cung cấp mặc định",
-                            Phone = "0900000000"
-                        });
                 });
 
             modelBuilder.Entity("SalesInventory.Api.Models.Order", b =>

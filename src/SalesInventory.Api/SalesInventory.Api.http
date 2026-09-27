@@ -1,1 +1,87 @@
 @SalesInventory.Api_HostAddress = http://localhost:5087
+
+### =========================================================
+### Categories CRUD
+### =========================================================
+
+### Categories: get all
+GET {{SalesInventory.Api_HostAddress}}/api/categories
+
+### Categories: get by id
+GET {{SalesInventory.Api_HostAddress}}/api/categories/1
+
+### Categories: create
+# @name createCategory
+POST {{SalesInventory.Api_HostAddress}}/api/categories
+Content-Type: application/json
+
+{
+  "name": "Sample Category",
+  "description": "Created via .http sample request"
+}
+
+### Categories: get the just-created record
+GET {{SalesInventory.Api_HostAddress}}/api/categories/{{createCategory.response.body.id}}
+
+### Categories: update
+PUT {{SalesInventory.Api_HostAddress}}/api/categories/{{createCategory.response.body.id}}
+Content-Type: application/json
+
+{
+  "name": "Sample Category Updated",
+  "description": "Updated via .http sample request"
+}
+
+### Categories: delete
+DELETE {{SalesInventory.Api_HostAddress}}/api/categories/{{createCategory.response.body.id}}
+
+### Categories: confirm 404 after delete
+GET {{SalesInventory.Api_HostAddress}}/api/categories/{{createCategory.response.body.id}}
+
+
+### =========================================================
+### Products CRUD
+### =========================================================
+
+### Products: get all
+GET {{SalesInventory.Api_HostAddress}}/api/products
+
+### Products: get by id
+GET {{SalesInventory.Api_HostAddress}}/api/products/1
+
+### Products: get by category
+GET {{SalesInventory.Api_HostAddress}}/api/products/by-category/1
+
+### Products: create
+# @name createProduct
+POST {{SalesInventory.Api_HostAddress}}/api/products
+Content-Type: application/json
+
+{
+  "name": "Sample Product",
+  "sku": "SKU-SAMPLE-001",
+  "price": 99000,
+  "stockQuantity": 10,
+  "categoryId": 1
+}
+
+### Products: get the just-created record
+GET {{SalesInventory.Api_HostAddress}}/api/products/{{createProduct.response.body.id}}
+
+### Products: update
+PUT {{SalesInventory.Api_HostAddress}}/api/products/{{createProduct.response.body.id}}
+Content-Type: application/json
+
+{
+  "name": "Sample Product Updated",
+  "sku": "SKU-SAMPLE-001-B",
+  "price": 129000,
+  "stockQuantity": 20,
+  "categoryId": 2
+}
+
+### Products: delete
+DELETE {{SalesInventory.Api_HostAddress}}/api/products/{{createProduct.response.body.id}}
+
+### Products: confirm 404 after delete
+GET {{SalesInventory.Api_HostAddress}}/api/products/{{createProduct.response.body.id}}

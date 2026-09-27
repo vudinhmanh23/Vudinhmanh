@@ -2,18 +2,18 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SalesInventory.Api.Models;
 
-// Represents a product supplier
-public class Supplier
+// Represents a customer who places orders
+public class Customer
 {
     [Key]
     public int Id { get; set; }
 
     [Required]
     [MaxLength(200)]
-    public string Name { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
 
     [MaxLength(20)]
-    public string Phone { get; set; } = string.Empty;
+    public string? Phone { get; set; }
 
     [MaxLength(200)]
     public string? Email { get; set; }
@@ -21,6 +21,6 @@ public class Supplier
     [MaxLength(300)]
     public string? Address { get; set; }
 
-    // A supplier can have many products
-    public ICollection<Product> Products { get; set; } = new List<Product>();
+    // A customer can place many orders
+    public ICollection<Order> Orders { get; set; } = new List<Order>();
 }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SalesInventory.Api.Dtos;
 using SalesInventory.Api.Models;
@@ -5,8 +6,10 @@ using SalesInventory.Api.Services;
 
 namespace SalesInventory.Api.Controllers;
 
+// Stock-in (products): any authenticated user can read, only Admin/WarehouseManager can write
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class ProductsController : ControllerBase
 {
     // CreateProductDto has no SupplierId (per API contract), so new products fall back to the seeded default supplier
@@ -58,6 +61,7 @@ public class ProductsController : ControllerBase
 
     /// <summary>Creates a new product.</summary>
     [HttpPost]
+    [Authorize(Roles = "Admin,WarehouseManager")]
     public async Task<ActionResult<ProductDto>> CreateProduct(CreateProductDto dto)
     {
         var product = new Product
@@ -86,6 +90,7 @@ public class ProductsController : ControllerBase
 
     /// <summary>Updates an existing product.</summary>
     [HttpPut("{id}")]
+    [Authorize(Roles = "Admin,WarehouseManager")]
     public async Task<IActionResult> UpdateProduct(int id, UpdateProductDto dto)
     {
         var product = new Product
@@ -111,6 +116,7 @@ public class ProductsController : ControllerBase
 
     /// <summary>Deletes a product.</summary>
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin,WarehouseManager")]
     public async Task<IActionResult> DeleteProduct(int id)
     {
         var deleted = await _productService.DeleteProductAsync(id);

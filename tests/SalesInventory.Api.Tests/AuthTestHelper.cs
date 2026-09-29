@@ -15,6 +15,7 @@ internal static class AuthTestHelper
         {
             Email = email,
             Password = password,
+            FullName = "Test User",
             Role = role
         });
         registerResponse.EnsureSuccessStatusCode();

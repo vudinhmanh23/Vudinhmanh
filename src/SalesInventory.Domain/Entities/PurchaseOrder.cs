@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace SalesInventory.Api.Models;
+namespace SalesInventory.Domain.Entities;
 
 // Represents a purchase order placed with a supplier to restock inventory
 public class PurchaseOrder

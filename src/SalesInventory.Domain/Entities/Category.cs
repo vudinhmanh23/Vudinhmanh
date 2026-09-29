@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace SalesInventory.Api.Models;
+namespace SalesInventory.Domain.Entities;
 
 // Represents a product category
 public class Category

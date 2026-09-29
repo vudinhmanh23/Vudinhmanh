@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace SalesInventory.Api.Models;
+namespace SalesInventory.Domain.Entities;
 
 // Represents a sales order placed by a customer
 public class Order

@@ -223,7 +223,7 @@ namespace SalesInventory.Api.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Category", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Category", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -277,7 +277,7 @@ namespace SalesInventory.Api.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Customer", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Customer", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -307,7 +307,7 @@ namespace SalesInventory.Api.Migrations
                     b.ToTable("Customers");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Order", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Order", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -328,7 +328,7 @@ namespace SalesInventory.Api.Migrations
                     b.ToTable("Orders");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.OrderItem", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.OrderItem", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -357,7 +357,7 @@ namespace SalesInventory.Api.Migrations
                     b.ToTable("OrderItems");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Product", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Product", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -489,7 +489,7 @@ namespace SalesInventory.Api.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.PurchaseOrder", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.PurchaseOrder", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -510,7 +510,7 @@ namespace SalesInventory.Api.Migrations
                     b.ToTable("PurchaseOrders");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.PurchaseOrderItem", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.PurchaseOrderItem", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -539,7 +539,7 @@ namespace SalesInventory.Api.Migrations
                     b.ToTable("PurchaseOrderItems");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Supplier", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Supplier", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -629,9 +629,9 @@ namespace SalesInventory.Api.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Order", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Order", b =>
                 {
-                    b.HasOne("SalesInventory.Api.Models.Customer", "Customer")
+                    b.HasOne("SalesInventory.Domain.Entities.Customer", "Customer")
                         .WithMany("Orders")
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -640,15 +640,15 @@ namespace SalesInventory.Api.Migrations
                     b.Navigation("Customer");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.OrderItem", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.OrderItem", b =>
                 {
-                    b.HasOne("SalesInventory.Api.Models.Order", "Order")
+                    b.HasOne("SalesInventory.Domain.Entities.Order", "Order")
                         .WithMany("OrderItems")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("SalesInventory.Api.Models.Product", "Product")
+                    b.HasOne("SalesInventory.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -659,15 +659,15 @@ namespace SalesInventory.Api.Migrations
                     b.Navigation("Product");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Product", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Product", b =>
                 {
-                    b.HasOne("SalesInventory.Api.Models.Category", "Category")
+                    b.HasOne("SalesInventory.Domain.Entities.Category", "Category")
                         .WithMany("Products")
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SalesInventory.Api.Models.Supplier", "Supplier")
+                    b.HasOne("SalesInventory.Domain.Entities.Supplier", "Supplier")
                         .WithMany("Products")
                         .HasForeignKey("SupplierId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -678,9 +678,9 @@ namespace SalesInventory.Api.Migrations
                     b.Navigation("Supplier");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.PurchaseOrder", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.PurchaseOrder", b =>
                 {
-                    b.HasOne("SalesInventory.Api.Models.Supplier", "Supplier")
+                    b.HasOne("SalesInventory.Domain.Entities.Supplier", "Supplier")
                         .WithMany()
                         .HasForeignKey("SupplierId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -689,15 +689,15 @@ namespace SalesInventory.Api.Migrations
                     b.Navigation("Supplier");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.PurchaseOrderItem", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.PurchaseOrderItem", b =>
                 {
-                    b.HasOne("SalesInventory.Api.Models.Product", "Product")
+                    b.HasOne("SalesInventory.Domain.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SalesInventory.Api.Models.PurchaseOrder", "PurchaseOrder")
+                    b.HasOne("SalesInventory.Domain.Entities.PurchaseOrder", "PurchaseOrder")
                         .WithMany("PurchaseOrderItems")
                         .HasForeignKey("PurchaseOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -708,27 +708,27 @@ namespace SalesInventory.Api.Migrations
                     b.Navigation("PurchaseOrder");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Category", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Category", b =>
                 {
                     b.Navigation("Products");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Customer", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Customer", b =>
                 {
                     b.Navigation("Orders");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Order", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Order", b =>
                 {
                     b.Navigation("OrderItems");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.PurchaseOrder", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.PurchaseOrder", b =>
                 {
                     b.Navigation("PurchaseOrderItems");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Supplier", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Supplier", b =>
                 {
                     b.Navigation("Products");
                 });

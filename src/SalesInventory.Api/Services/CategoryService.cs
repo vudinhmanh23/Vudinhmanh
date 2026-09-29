@@ -1,4 +1,4 @@
-using SalesInventory.Api.Models;
+using SalesInventory.Domain.Entities;
 using SalesInventory.Api.Repositories;
 
 namespace SalesInventory.Api.Services;

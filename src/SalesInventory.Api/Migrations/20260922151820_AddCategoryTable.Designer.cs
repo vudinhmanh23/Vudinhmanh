@@ -24,7 +24,7 @@ namespace SalesInventory.Api.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Category", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Category", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -46,7 +46,7 @@ namespace SalesInventory.Api.Migrations
                     b.ToTable("Categories");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Product", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Product", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -75,9 +75,9 @@ namespace SalesInventory.Api.Migrations
                     b.ToTable("Products");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Product", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Product", b =>
                 {
-                    b.HasOne("SalesInventory.Api.Models.Category", "Category")
+                    b.HasOne("SalesInventory.Domain.Entities.Category", "Category")
                         .WithMany("Products")
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -86,7 +86,7 @@ namespace SalesInventory.Api.Migrations
                     b.Navigation("Category");
                 });
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Category", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Category", b =>
                 {
                     b.Navigation("Products");
                 });

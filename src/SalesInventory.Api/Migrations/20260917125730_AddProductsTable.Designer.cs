@@ -24,7 +24,7 @@ namespace SalesInventory.Api.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("SalesInventory.Api.Models.Product", b =>
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Product", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using SalesInventory.Api.Models;
+using SalesInventory.Domain.Entities;
 
 namespace SalesInventory.Api.Data;
 

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace SalesInventory.Api.Models;
+namespace SalesInventory.Domain.Entities;
 
 // Junction entity linking Order and Product, forming a many-to-many relationship via order line items
 public class OrderItem

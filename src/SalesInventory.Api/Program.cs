@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SalesInventory.Api.Data;
 using SalesInventory.Api.Models;
+using SalesInventory.Domain.Entities;
 using SalesInventory.Api.Options;
 using SalesInventory.Api.Repositories;
 using SalesInventory.Api.Services;

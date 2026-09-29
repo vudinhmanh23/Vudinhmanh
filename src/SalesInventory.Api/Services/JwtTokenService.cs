@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using SalesInventory.Api.Models;
+using SalesInventory.Domain.Entities;
 using SalesInventory.Api.Options;
 
 namespace SalesInventory.Api.Services;

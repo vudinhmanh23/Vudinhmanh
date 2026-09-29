@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace SalesInventory.Api.Models;
+namespace SalesInventory.Domain.Entities;
 
 // Junction entity linking PurchaseOrder and Product, forming a many-to-many relationship via purchase line items
 public class PurchaseOrderItem

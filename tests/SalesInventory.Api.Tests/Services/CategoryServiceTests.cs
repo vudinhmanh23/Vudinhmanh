@@ -1,7 +1,6 @@
 using Moq;
 using SalesInventory.Domain.Entities;
 using SalesInventory.Application.Interfaces;
-using SalesInventory.Application.Interfaces;
 using SalesInventory.Application.Services;
 
 namespace SalesInventory.Api.Tests.Services;

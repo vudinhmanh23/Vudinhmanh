@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 
-namespace SalesInventory.Api.Models;
+namespace SalesInventory.Infrastructure.Identity;
 
 // Identity user for authentication; roles are managed separately via IdentityRole
 public class ApplicationUser : IdentityUser

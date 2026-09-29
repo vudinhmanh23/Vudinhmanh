@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace SalesInventory.Api.Migrations
+namespace SalesInventory.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
     public partial class AddProductsTable : Migration

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SalesInventory.Application.Dtos;
-using SalesInventory.Api.Models;
+using SalesInventory.Infrastructure.Identity;
 using SalesInventory.Domain.Entities;
 
 namespace SalesInventory.Api.Controllers;

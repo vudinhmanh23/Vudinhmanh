@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
 
-namespace SalesInventory.Api.Migrations
+namespace SalesInventory.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
     public partial class SeedInitialData : Migration

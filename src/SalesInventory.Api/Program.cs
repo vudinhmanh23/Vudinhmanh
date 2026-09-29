@@ -5,13 +5,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using SalesInventory.Api.Data;
-using SalesInventory.Api.Models;
+using SalesInventory.Infrastructure.Persistence;
+using SalesInventory.Infrastructure.Identity;
 using SalesInventory.Domain.Entities;
-using SalesInventory.Api.Options;
-using SalesInventory.Api.Repositories;
-using SalesInventory.Application.Interfaces;
-using SalesInventory.Api.Services;
+using SalesInventory.Infrastructure.Repositories;
 using SalesInventory.Application.Interfaces;
 using SalesInventory.Application;
 

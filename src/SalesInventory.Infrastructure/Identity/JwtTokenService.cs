@@ -3,11 +3,8 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using SalesInventory.Api.Models;
-using SalesInventory.Domain.Entities;
-using SalesInventory.Api.Options;
 
-namespace SalesInventory.Api.Services;
+namespace SalesInventory.Infrastructure.Identity;
 
 public class JwtTokenService : IJwtTokenService
 {
@@ -18,12 +15,12 @@ public class JwtTokenService : IJwtTokenService
         _settings = options.Value;
     }
 
-    public string GenerateToken(ApplicationUser user, IList<string> roles, out DateTime expiresAtUtc)
+    public string GenerateToken(string userId, string? email, IList<string> roles, out DateTime expiresAtUtc)
     {
         var claims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, user.Id),
-            new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
+            new(JwtRegisteredClaimNames.Sub, userId),
+            new(JwtRegisteredClaimNames.Email, email ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));

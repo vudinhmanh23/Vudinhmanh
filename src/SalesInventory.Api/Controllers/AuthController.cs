@@ -2,9 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using SalesInventory.Application.Dtos;
-using SalesInventory.Api.Models;
+using SalesInventory.Infrastructure.Identity;
 using SalesInventory.Domain.Entities;
-using SalesInventory.Api.Services;
 
 namespace SalesInventory.Api.Controllers;
 
@@ -57,7 +56,7 @@ public class AuthController : ControllerBase
         }
 
         var roles = await _userManager.GetRolesAsync(user);
-        var token = _tokenService.GenerateToken(user, roles, out var expiresAtUtc);
+        var token = _tokenService.GenerateToken(user.Id, user.Email, roles, out var expiresAtUtc);
 
         return Ok(new AuthResponseDto { Token = token, ExpiresAtUtc = expiresAtUtc });
     }

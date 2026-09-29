@@ -1,8 +1,8 @@
 using SalesInventory.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using SalesInventory.Api.Data;
+using SalesInventory.Infrastructure.Persistence;
 
-namespace SalesInventory.Api.Repositories;
+namespace SalesInventory.Infrastructure.Repositories;
 
 // Generic EF Core repository backed by the shared AppDbContext
 public class Repository<T> : IRepository<T> where T : class

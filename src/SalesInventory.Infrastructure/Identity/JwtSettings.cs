@@ -1,4 +1,4 @@
-namespace SalesInventory.Api.Options;
+namespace SalesInventory.Infrastructure.Identity;
 
 // Bound from the "Jwt" configuration section; Key is supplied via user-secrets, never committed
 public class JwtSettings

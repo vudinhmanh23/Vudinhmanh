@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using SalesInventory.Api.Data;
+using SalesInventory.Infrastructure.Persistence;
 
 namespace SalesInventory.Api.Controllers;
 

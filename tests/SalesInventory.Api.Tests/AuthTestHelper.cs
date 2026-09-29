@@ -1,5 +1,5 @@
 using System.Net.Http.Json;
-using SalesInventory.Api.Dtos;
+using SalesInventory.Application.Dtos;
 
 namespace SalesInventory.Api.Tests;
 
@@ -15,6 +15,7 @@ internal static class AuthTestHelper
         {
             Email = email,
             Password = password,
+            FullName = "Test User",
             Role = role
         });
         registerResponse.EnsureSuccessStatusCode();

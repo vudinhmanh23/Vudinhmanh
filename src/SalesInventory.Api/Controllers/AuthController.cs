@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using SalesInventory.Api.Dtos;
-using SalesInventory.Api.Models;
-using SalesInventory.Api.Services;
+using SalesInventory.Application.Dtos;
+using SalesInventory.Infrastructure.Identity;
+using SalesInventory.Domain.Entities;
 
 namespace SalesInventory.Api.Controllers;
 
@@ -33,16 +33,16 @@ public class AuthController : ControllerBase
             return BadRequest($"Role must be one of: {string.Join(", ", AllowedRoles)}");
         }
 
-        var user = new ApplicationUser { UserName = dto.Email, Email = dto.Email };
+        var user = new ApplicationUser { UserName = dto.Email, Email = dto.Email, FullName = dto.FullName };
         var result = await _userManager.CreateAsync(user, dto.Password);
         if (!result.Succeeded)
         {
-            return BadRequest(result.Errors.Select(e => e.Description));
+            return BadRequest(new { message = DescribeRegistrationError(result.Errors) });
         }
 
         await _userManager.AddToRoleAsync(user, role);
 
-        return Ok(new { message = "Registered successfully." });
+        return Ok(new { message = "Đăng ký thành công" });
     }
 
     /// <summary>Authenticates a user and returns a JWT.</summary>
@@ -52,11 +52,11 @@ public class AuthController : ControllerBase
         var user = await _userManager.FindByEmailAsync(dto.Email);
         if (user is null || !await _userManager.CheckPasswordAsync(user, dto.Password))
         {
-            return Unauthorized("Invalid email or password.");
+            return Unauthorized(new { message = "Email hoặc mật khẩu không đúng" });
         }
 
         var roles = await _userManager.GetRolesAsync(user);
-        var token = _tokenService.GenerateToken(user, roles, out var expiresAtUtc);
+        var token = _tokenService.GenerateToken(user.Id, user.Email, roles, out var expiresAtUtc);
 
         return Ok(new AuthResponseDto { Token = token, ExpiresAtUtc = expiresAtUtc });
     }
@@ -89,5 +89,34 @@ public class AuthController : ControllerBase
         }
 
         return Ok(new { message = "Role assigned." });
+    }
+
+    // Maps Identity's technical error codes to a single friendly Vietnamese message,
+    // without leaking internal details (e.g. exact password rule wording).
+    private static string DescribeRegistrationError(IEnumerable<IdentityError> errors)
+    {
+        var codes = errors.Select(e => e.Code).ToHashSet();
+
+        if (codes.Contains("DuplicateUserName") || codes.Contains("DuplicateEmail"))
+        {
+            return "Email này đã được sử dụng. Vui lòng chọn email khác.";
+        }
+
+        if (codes.Contains("InvalidEmail"))
+        {
+            return "Email không hợp lệ.";
+        }
+
+        string[] passwordCodes =
+        {
+            "PasswordTooShort", "PasswordRequiresUpper", "PasswordRequiresLower",
+            "PasswordRequiresDigit", "PasswordRequiresNonAlphanumeric", "PasswordRequiresUniqueChars"
+        };
+        if (codes.Overlaps(passwordCodes))
+        {
+            return "Mật khẩu chưa đủ mạnh. Mật khẩu cần tối thiểu 8 ký tự, có ít nhất một chữ hoa và một chữ số.";
+        }
+
+        return "Đăng ký không thành công. Vui lòng thử lại.";
     }
 }

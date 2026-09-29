@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using SalesInventory.Api.Dtos;
-using SalesInventory.Api.Models;
-using SalesInventory.Api.Services;
+using SalesInventory.Application.Dtos;
+using SalesInventory.Domain.Entities;
+using SalesInventory.Application.Interfaces;
 
 namespace SalesInventory.Api.Controllers;
 

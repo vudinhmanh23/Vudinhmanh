@@ -2,8 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using SalesInventory.Api.Dtos;
-using SalesInventory.Api.Models;
+using SalesInventory.Application.Dtos;
+using SalesInventory.Infrastructure.Identity;
+using SalesInventory.Domain.Entities;
 
 namespace SalesInventory.Api.Controllers;
 

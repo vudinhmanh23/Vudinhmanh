@@ -1,4 +1,4 @@
-namespace SalesInventory.Api.Dtos;
+namespace SalesInventory.Application.Dtos;
 
 // Read model returned by category endpoints
 public class CategoryDto

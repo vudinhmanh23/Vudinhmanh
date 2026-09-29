@@ -1,4 +1,4 @@
-namespace SalesInventory.Api.Dtos;
+namespace SalesInventory.Application.Dtos;
 
 // Read model for a sales order line item
 public class OrderItemDto

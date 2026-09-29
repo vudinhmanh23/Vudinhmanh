@@ -1,4 +1,4 @@
-namespace SalesInventory.Api.Dtos;
+namespace SalesInventory.Application.Dtos;
 
 // Read model returned by purchase order endpoints
 public class PurchaseOrderDto

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace SalesInventory.Api.Dtos;
+namespace SalesInventory.Application.Dtos;
 
 // Write model for a sales order line item
 public class CreateOrderItemDto

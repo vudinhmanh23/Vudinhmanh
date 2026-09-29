@@ -1,6 +1,6 @@
 using SalesInventory.Domain.Entities;
 
-namespace SalesInventory.Api.Services;
+namespace SalesInventory.Application.Interfaces;
 
 // Business-facing operations for PurchaseOrder (stock-in), on top of the repository layer
 public interface IPurchaseOrderService

@@ -1,3 +1,4 @@
+using SalesInventory.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using SalesInventory.Api.Data;
 

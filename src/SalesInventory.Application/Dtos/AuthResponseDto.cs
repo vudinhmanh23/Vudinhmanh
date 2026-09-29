@@ -1,4 +1,4 @@
-namespace SalesInventory.Api.Dtos;
+namespace SalesInventory.Application.Dtos;
 
 public class AuthResponseDto
 {

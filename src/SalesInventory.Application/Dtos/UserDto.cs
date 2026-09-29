@@ -1,4 +1,4 @@
-namespace SalesInventory.Api.Dtos;
+namespace SalesInventory.Application.Dtos;
 
 // Read model returned by account/role management endpoints
 public class UserDto

@@ -1,9 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace SalesInventory.Api.Dtos;
+namespace SalesInventory.Application.Dtos;
 
-// Write model for creating a category
-public class CreateCategoryDto
+// Write model for updating an existing category
+public class UpdateCategoryDto
 {
     [Required]
     [MaxLength(100)]

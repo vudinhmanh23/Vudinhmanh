@@ -1,4 +1,4 @@
-namespace SalesInventory.Api.Repositories;
+namespace SalesInventory.Application.Interfaces;
 
 // Generic data-access contract shared by all entities
 public interface IRepository<T> where T : class

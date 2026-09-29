@@ -1,7 +1,7 @@
 using SalesInventory.Domain.Entities;
-using SalesInventory.Api.Repositories;
+using SalesInventory.Application.Interfaces;
 
-namespace SalesInventory.Api.Services;
+namespace SalesInventory.Application.Services;
 
 public class CategoryService : ICategoryService
 {

@@ -10,7 +10,10 @@ using SalesInventory.Api.Models;
 using SalesInventory.Domain.Entities;
 using SalesInventory.Api.Options;
 using SalesInventory.Api.Repositories;
+using SalesInventory.Application.Interfaces;
 using SalesInventory.Api.Services;
+using SalesInventory.Application.Interfaces;
+using SalesInventory.Application;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,10 +63,7 @@ builder.Services.AddAuthorization();
 
 // Repository and service layer registrations
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-builder.Services.AddScoped<ICategoryService, CategoryService>();
-builder.Services.AddScoped<IProductService, ProductService>();
-builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
-builder.Services.AddScoped<ISalesOrderService, SalesOrderService>();
+builder.Services.AddApplication();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

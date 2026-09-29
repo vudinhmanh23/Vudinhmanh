@@ -1,5 +1,5 @@
 using System.Net.Http.Json;
-using SalesInventory.Api.Dtos;
+using SalesInventory.Application.Dtos;
 
 namespace SalesInventory.Api.Tests;
 

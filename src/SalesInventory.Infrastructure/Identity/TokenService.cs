@@ -6,11 +6,11 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace SalesInventory.Infrastructure.Identity;
 
-public class JwtTokenService : IJwtTokenService
+public class TokenService : ITokenService
 {
     private readonly JwtSettings _settings;
 
-    public JwtTokenService(IOptions<JwtSettings> options)
+    public TokenService(IOptions<JwtSettings> options)
     {
         _settings = options.Value;
     }

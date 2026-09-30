@@ -17,6 +17,11 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // JWT bearer validation reads the same "Jwt" section that Infrastructure binds for token generation
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
+if (Encoding.UTF8.GetByteCount(jwtSettings.Key) < 32)
+{
+    throw new InvalidOperationException(
+        "Jwt:Key is missing or shorter than 32 bytes. Set it with: dotnet user-secrets set \"Jwt:Key\" \"<random 32+ char secret>\"");
+}
 
 builder.Services.AddAuthentication(options =>
 {
@@ -31,6 +36,8 @@ builder.Services.AddAuthentication(options =>
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
+            // Default is 5 minutes of tolerance; zero makes "exp" exact
+            ClockSkew = TimeSpan.Zero,
             ValidIssuer = jwtSettings.Issuer,
             ValidAudience = jwtSettings.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))

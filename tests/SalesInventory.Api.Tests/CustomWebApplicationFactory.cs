@@ -16,6 +16,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Throwaway key so tests don't depend on the developer's user-secrets (e.g. on CI)
+        builder.UseSetting("Jwt:Key", "integration-tests-only-key-0123456789abcdef");
+
         builder.ConfigureServices(services =>
         {
             var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));

@@ -31,7 +31,7 @@ public static class DependencyInjection
 
         // JWT: options bound from configuration ("Jwt:Key" comes from user-secrets, never committed)
         services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
-        services.AddScoped<IJwtTokenService, JwtTokenService>();
+        services.AddScoped<ITokenService, TokenService>();
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 

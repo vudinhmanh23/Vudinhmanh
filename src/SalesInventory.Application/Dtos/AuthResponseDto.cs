@@ -3,5 +3,5 @@ namespace SalesInventory.Application.Dtos;
 public class AuthResponseDto
 {
     public string Token { get; set; } = string.Empty;
-    public DateTime ExpiresAtUtc { get; set; }
+    public DateTime ExpiresAt { get; set; }
 }

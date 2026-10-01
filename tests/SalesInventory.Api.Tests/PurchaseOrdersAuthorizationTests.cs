@@ -5,7 +5,7 @@ using SalesInventory.Application.Dtos;
 
 namespace SalesInventory.Api.Tests;
 
-// Stock-in endpoint: POST /api/purchaseorders is restricted to Admin/WarehouseManager
+// Stock-in endpoint: POST /api/purchaseorders is restricted to Admin/Kho
 public class PurchaseOrdersAuthorizationTests : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly CustomWebApplicationFactory _factory;
@@ -39,7 +39,7 @@ public class PurchaseOrdersAuthorizationTests : IClassFixture<CustomWebApplicati
     public async Task CreatePurchaseOrder_WrongRole_Returns403()
     {
         var client = _factory.CreateClient();
-        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "SalesStaff");
+        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "BanHang");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await client.PostAsJsonAsync("/api/purchaseorders", NewPurchaseOrderDto());

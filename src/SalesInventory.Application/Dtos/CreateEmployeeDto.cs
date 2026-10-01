@@ -2,19 +2,20 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SalesInventory.Application.Dtos;
 
-public class RegisterDto
+// Request body for POST /api/admin/employees
+public class CreateEmployeeDto
 {
     [Required(ErrorMessage = "Email là bắt buộc.")]
     [EmailAddress(ErrorMessage = "Email không đúng định dạng.")]
     public string Email { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Mật khẩu là bắt buộc.")]
-    [MinLength(6, ErrorMessage = "Mật khẩu phải có ít nhất 6 ký tự.")]
     public string Password { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Họ tên là bắt buộc.")]
     public string FullName { get; set; } = string.Empty;
 
-    // Optional role: Admin, Kho or BanHang. Defaults to BanHang when omitted.
-    public string? Role { get; set; }
+    // "Kho" or "BanHang"
+    [Required(ErrorMessage = "Vai trò là bắt buộc.")]
+    public string Role { get; set; } = string.Empty;
 }

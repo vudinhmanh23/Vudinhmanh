@@ -14,8 +14,18 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly string _databaseName = $"IntegrationTests_{Guid.NewGuid():N}";
 
+    // Hook for subclasses to supply extra settings (e.g. SeedAdmin) before the host starts
+    protected virtual void ConfigureExtraSettings(IWebHostBuilder builder)
+    {
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ConfigureExtraSettings(builder);
+
+        // Throwaway key so tests don't depend on the developer's user-secrets (e.g. on CI)
+        builder.UseSetting("Jwt:Key", "integration-tests-only-key-0123456789abcdef");
+
         builder.ConfigureServices(services =>
         {
             var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));

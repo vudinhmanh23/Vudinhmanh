@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -11,13 +13,13 @@ namespace SalesInventory.Api.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private static readonly string[] AllowedRoles = { "Admin", "WarehouseManager", "SalesStaff" };
-    private const string DefaultRole = "SalesStaff";
+    private static readonly string[] AllowedRoles = AppRoles.All;
+    private const string DefaultRole = AppRoles.BanHang;
 
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IJwtTokenService _tokenService;
+    private readonly ITokenService _tokenService;
 
-    public AuthController(UserManager<ApplicationUser> userManager, IJwtTokenService tokenService)
+    public AuthController(UserManager<ApplicationUser> userManager, ITokenService tokenService)
     {
         _userManager = userManager;
         _tokenService = tokenService;
@@ -58,7 +60,20 @@ public class AuthController : ControllerBase
         var roles = await _userManager.GetRolesAsync(user);
         var token = _tokenService.GenerateToken(user.Id, user.Email, roles, out var expiresAtUtc);
 
-        return Ok(new AuthResponseDto { Token = token, ExpiresAtUtc = expiresAtUtc });
+        return Ok(new AuthResponseDto { Token = token, ExpiresAt = expiresAtUtc });
+    }
+
+    /// <summary>Returns the current user's identity, read from the token claims (no database query).</summary>
+    [HttpGet("me")]
+    [Authorize]
+    public IActionResult Me()
+    {
+        // The JWT handler maps "sub"/"email" to ClaimTypes.* by default; fall back to the raw names in case that is disabled
+        var id = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        var email = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue(JwtRegisteredClaimNames.Email);
+        var roles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+
+        return Ok(new { id, email, roles });
     }
 
     /// <summary>Assigns a role to an existing account. Admin only.</summary>

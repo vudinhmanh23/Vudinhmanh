@@ -1,3 +1,4 @@
+using SalesInventory.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SalesInventory.Application.Dtos;
@@ -6,10 +7,10 @@ using SalesInventory.Application.Interfaces;
 
 namespace SalesInventory.Api.Controllers;
 
-// Sales orders: restricted to Admin and SalesStaff for all operations
+// Sales orders: restricted to Admin and BanHang for all operations
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin,SalesStaff")]
+[Authorize(Policy = AuthPolicies.SalesAccess)]
 public class SalesOrdersController : ControllerBase
 {
     private readonly ISalesOrderService _salesOrderService;

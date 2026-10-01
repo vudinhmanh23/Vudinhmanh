@@ -17,6 +17,11 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // JWT bearer validation reads the same "Jwt" section that Infrastructure binds for token generation
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
+if (Encoding.UTF8.GetByteCount(jwtSettings.Key) < 32)
+{
+    throw new InvalidOperationException(
+        "Jwt:Key is missing or shorter than 32 bytes. Set it with: dotnet user-secrets set \"Jwt:Key\" \"<random 32+ char secret>\"");
+}
 
 builder.Services.AddAuthentication(options =>
 {
@@ -31,13 +36,27 @@ builder.Services.AddAuthentication(options =>
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
+            // Default is 5 minutes of tolerance; zero makes "exp" exact
+            ClockSkew = TimeSpan.Zero,
             ValidIssuer = jwtSettings.Issuer,
             ValidAudience = jwtSettings.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
         };
     });
 
-builder.Services.AddAuthorization();
+// Named policies (used via [Authorize(Policy = "...")]). Roles vs Policy:
+//  - [Authorize(Roles = "A,B")]: role names are hard-coded on each controller/action; simple, but the rule
+//    is duplicated everywhere and can only express "has any of these roles".
+//  - [Authorize(Policy = "X")]: the rule is defined once here and referenced by name, so changing who may
+//    access a feature is a one-line edit; policies can also combine claims, custom requirements or handlers
+//    (e.g. "role Kho AND claim warehouse=HN"), which Roles cannot.
+// Under the hood RequireRole is the same check as Roles=..., so both styles yield 401 (no/invalid token) and 403 (wrong role).
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AuthPolicies.AdminOnly, p => p.RequireRole(AppRoles.Admin));
+    options.AddPolicy(AuthPolicies.InventoryAccess, p => p.RequireRole(AppRoles.Admin, AppRoles.Kho));
+    options.AddPolicy(AuthPolicies.SalesAccess, p => p.RequireRole(AppRoles.Admin, AppRoles.BanHang));
+});
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -88,18 +107,9 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Seed the fixed set of roles used by the application
-using (var scope = app.Services.CreateScope())
-{
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    string[] roles = { "Admin", "WarehouseManager", "SalesStaff" };
-    foreach (var role in roles)
-    {
-        if (!await roleManager.RoleExistsAsync(role))
-        {
-            await roleManager.CreateAsync(new IdentityRole(role));
-        }
-    }
-}
+await RoleSeeder.SeedRolesAsync(app.Services);
+// Default Admin for demos; credentials come from configuration (user-secrets / env), never from code
+await RoleSeeder.SeedAdminAsync(app.Services);
 
 app.Run();
 

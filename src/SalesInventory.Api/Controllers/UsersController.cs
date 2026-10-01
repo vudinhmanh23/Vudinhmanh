@@ -14,7 +14,7 @@ namespace SalesInventory.Api.Controllers;
 [Authorize(Roles = "Admin")]
 public class UsersController : ControllerBase
 {
-    private static readonly string[] AllowedRoles = { "Admin", "WarehouseManager", "SalesStaff" };
+    private static readonly string[] AllowedRoles = AppRoles.All;
 
     private readonly UserManager<ApplicationUser> _userManager;
 

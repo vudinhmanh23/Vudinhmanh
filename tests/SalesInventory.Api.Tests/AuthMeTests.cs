@@ -39,7 +39,7 @@ public class AuthMeTests : IClassFixture<CustomWebApplicationFactory>
             Email = email,
             Password = password,
             FullName = "Me User",
-            Role = "WarehouseManager"
+            Role = "Kho"
         })).EnsureSuccessStatusCode();
 
         var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new LoginDto { Email = email, Password = password });
@@ -58,6 +58,6 @@ public class AuthMeTests : IClassFixture<CustomWebApplicationFactory>
         var root = json.RootElement;
         Assert.Equal(expectedId, root.GetProperty("id").GetString());
         Assert.Equal(email, root.GetProperty("email").GetString());
-        Assert.Equal(new[] { "WarehouseManager" }, root.GetProperty("roles").EnumerateArray().Select(r => r.GetString()).ToArray());
+        Assert.Equal(new[] { "Kho" }, root.GetProperty("roles").EnumerateArray().Select(r => r.GetString()).ToArray());
     }
 }

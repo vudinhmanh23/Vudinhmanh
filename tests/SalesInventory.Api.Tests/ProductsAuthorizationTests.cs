@@ -5,7 +5,7 @@ using SalesInventory.Application.Dtos;
 
 namespace SalesInventory.Api.Tests;
 
-// Stock-in endpoint: POST /api/products is restricted to Admin/WarehouseManager
+// Stock-in endpoint: POST /api/products is restricted to Admin/Kho
 public class ProductsAuthorizationTests : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly CustomWebApplicationFactory _factory;
@@ -38,7 +38,7 @@ public class ProductsAuthorizationTests : IClassFixture<CustomWebApplicationFact
     public async Task CreateProduct_WrongRole_Returns403()
     {
         var client = _factory.CreateClient();
-        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "SalesStaff");
+        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "BanHang");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await client.PostAsJsonAsync("/api/products", NewProductDto());
@@ -50,7 +50,7 @@ public class ProductsAuthorizationTests : IClassFixture<CustomWebApplicationFact
     public async Task CreateProduct_CorrectRole_Succeeds()
     {
         var client = _factory.CreateClient();
-        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "WarehouseManager");
+        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "Kho");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await client.PostAsJsonAsync("/api/products", NewProductDto());

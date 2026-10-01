@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authorization;
+using SalesInventory.Infrastructure.Identity;
 using Microsoft.AspNetCore.Mvc;
 using SalesInventory.Application.Dtos;
 using SalesInventory.Domain.Entities;
@@ -5,6 +7,7 @@ using SalesInventory.Application.Interfaces;
 
 namespace SalesInventory.Api.Controllers;
 
+[Authorize(Policy = AuthPolicies.AdminOnly)]
 [ApiController]
 [Route("api/[controller]")]
 public class CategoriesController : ControllerBase

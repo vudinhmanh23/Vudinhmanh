@@ -6,10 +6,10 @@ using SalesInventory.Application.Interfaces;
 
 namespace SalesInventory.Api.Controllers;
 
-// Stock-in (purchase orders): any authenticated user can read, only Admin/WarehouseManager can write
+// Purchase orders: whole controller restricted to Admin and Kho via Roles (ProductsController uses a policy instead)
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "Admin,Kho")]
 public class PurchaseOrdersController : ControllerBase
 {
     private readonly IPurchaseOrderService _purchaseOrderService;
@@ -51,7 +51,6 @@ public class PurchaseOrdersController : ControllerBase
 
     /// <summary>Creates a new purchase order (stock-in) with its line items.</summary>
     [HttpPost]
-    [Authorize(Roles = "Admin,WarehouseManager")]
     public async Task<ActionResult<PurchaseOrderDto>> CreatePurchaseOrder(CreatePurchaseOrderDto dto)
     {
         var order = new PurchaseOrder
@@ -87,7 +86,6 @@ public class PurchaseOrdersController : ControllerBase
 
     /// <summary>Deletes a purchase order and its line items.</summary>
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin,WarehouseManager")]
     public async Task<IActionResult> DeletePurchaseOrder(int id)
     {
         var deleted = await _purchaseOrderService.DeletePurchaseOrderAsync(id);

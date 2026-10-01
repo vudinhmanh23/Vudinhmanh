@@ -19,6 +19,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SalesInventoryDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+      SeedAdmin__Email: "${SEEDADMIN__EMAIL:-}"
+      SeedAdmin__Password: "${SEEDADMIN__PASSWORD:-}"
     ports:
       - "8080:8080"
     depends_on:

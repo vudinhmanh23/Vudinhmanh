@@ -13,8 +13,8 @@ namespace SalesInventory.Api.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private static readonly string[] AllowedRoles = { "Admin", "WarehouseManager", "SalesStaff" };
-    private const string DefaultRole = "SalesStaff";
+    private static readonly string[] AllowedRoles = AppRoles.All;
+    private const string DefaultRole = AppRoles.BanHang;
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ITokenService _tokenService;

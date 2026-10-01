@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SalesInventory.Infrastructure.Identity;
 using SalesInventory.Application;
+using SalesInventory.Api.Swagger;
 using SalesInventory.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -78,16 +79,8 @@ builder.Services.AddSwaggerGen(options =>
         In = ParameterLocation.Header,
         Description = "Enter the JWT token returned by /api/auth/login."
     });
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
-    });
+    // Per-operation requirement: only [Authorize]d actions show the padlock and send the token
+    options.OperationFilter<AuthorizeOperationFilter>();
 });
 
 var app = builder.Build();

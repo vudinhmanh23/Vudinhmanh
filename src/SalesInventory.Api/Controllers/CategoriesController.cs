@@ -7,7 +7,8 @@ using SalesInventory.Application.Interfaces;
 
 namespace SalesInventory.Api.Controllers;
 
-[Authorize(Policy = AuthPolicies.AdminOnly)]
+// GET: any authenticated user; writes: Admin and Kho only
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class CategoriesController : ControllerBase
@@ -42,6 +43,7 @@ public class CategoriesController : ControllerBase
 
     /// <summary>Creates a new category.</summary>
     [HttpPost]
+    [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.Kho}")]
     public async Task<ActionResult<CategoryDto>> CreateCategory(CreateCategoryDto dto)
     {
         var category = new Category
@@ -64,6 +66,7 @@ public class CategoriesController : ControllerBase
 
     /// <summary>Updates an existing category.</summary>
     [HttpPut("{id}")]
+    [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.Kho}")]
     public async Task<IActionResult> UpdateCategory(int id, UpdateCategoryDto dto)
     {
         var category = new Category
@@ -86,6 +89,7 @@ public class CategoriesController : ControllerBase
 
     /// <summary>Deletes a category.</summary>
     [HttpDelete("{id}")]
+    [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.Kho}")]
     public async Task<IActionResult> DeleteCategory(int id)
     {
         var deleted = await _categoryService.DeleteCategoryAsync(id);

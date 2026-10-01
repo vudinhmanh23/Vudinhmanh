@@ -7,10 +7,10 @@ using SalesInventory.Application.Interfaces;
 
 namespace SalesInventory.Api.Controllers;
 
-// Products: whole controller restricted to Admin and Kho via the "InventoryAccess" policy
+// Products: GET open to any authenticated user; writes restricted to Admin and Kho
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AuthPolicies.InventoryAccess)]
+[Authorize]
 public class ProductsController : ControllerBase
 {
     // CreateProductDto has no SupplierId (per API contract), so new products fall back to the seeded default supplier
@@ -62,6 +62,7 @@ public class ProductsController : ControllerBase
 
     /// <summary>Creates a new product.</summary>
     [HttpPost]
+    [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.Kho}")]
     public async Task<ActionResult<ProductDto>> CreateProduct(CreateProductDto dto)
     {
         var product = new Product
@@ -90,6 +91,7 @@ public class ProductsController : ControllerBase
 
     /// <summary>Updates an existing product.</summary>
     [HttpPut("{id}")]
+    [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.Kho}")]
     public async Task<IActionResult> UpdateProduct(int id, UpdateProductDto dto)
     {
         var product = new Product
@@ -115,6 +117,7 @@ public class ProductsController : ControllerBase
 
     /// <summary>Deletes a product.</summary>
     [HttpDelete("{id}")]
+    [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.Kho}")]
     public async Task<IActionResult> DeleteProduct(int id)
     {
         var deleted = await _productService.DeleteProductAsync(id);

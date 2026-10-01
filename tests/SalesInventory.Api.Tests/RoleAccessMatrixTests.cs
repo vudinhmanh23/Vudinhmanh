@@ -4,9 +4,10 @@ using System.Net.Http.Headers;
 namespace SalesInventory.Api.Tests;
 
 // Controller-level access rules (GET list endpoints):
-//   products, purchaseorders -> Admin, Kho
-//   salesorders              -> Admin, BanHang
-//   categories, users        -> Admin
+//   purchaseorders, suppliers -> Admin, Kho
+//   salesorders               -> Admin, BanHang, Kho
+//   products, categories GET  -> any authenticated role
+//   users                     -> Admin
 public class RoleAccessMatrixTests : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly CustomWebApplicationFactory _factory;
@@ -20,6 +21,7 @@ public class RoleAccessMatrixTests : IClassFixture<CustomWebApplicationFactory>
     [InlineData("/api/products")]
     [InlineData("/api/purchaseorders")]
     [InlineData("/api/salesorders")]
+    [InlineData("/api/suppliers")]
     [InlineData("/api/categories")]
     [InlineData("/api/users")]
     public async Task NoToken_Returns401(string url)
@@ -30,11 +32,8 @@ public class RoleAccessMatrixTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Theory]
-    [InlineData("/api/products", "BanHang")]
     [InlineData("/api/purchaseorders", "BanHang")]
-    [InlineData("/api/salesorders", "Kho")]
-    [InlineData("/api/categories", "Kho")]
-    [InlineData("/api/categories", "BanHang")]
+    [InlineData("/api/suppliers", "BanHang")]
     [InlineData("/api/users", "Kho")]
     [InlineData("/api/users", "BanHang")]
     public async Task WrongRole_Returns403(string url, string role)
@@ -49,9 +48,15 @@ public class RoleAccessMatrixTests : IClassFixture<CustomWebApplicationFactory>
     [InlineData("/api/products", "Kho")]
     [InlineData("/api/purchaseorders", "Admin")]
     [InlineData("/api/purchaseorders", "Kho")]
+    [InlineData("/api/products", "BanHang")]
+    [InlineData("/api/suppliers", "Admin")]
+    [InlineData("/api/suppliers", "Kho")]
     [InlineData("/api/salesorders", "Admin")]
     [InlineData("/api/salesorders", "BanHang")]
+    [InlineData("/api/salesorders", "Kho")]
     [InlineData("/api/categories", "Admin")]
+    [InlineData("/api/categories", "Kho")]
+    [InlineData("/api/categories", "BanHang")]
     [InlineData("/api/users", "Admin")]
     public async Task CorrectRole_Returns200(string url, string role)
     {

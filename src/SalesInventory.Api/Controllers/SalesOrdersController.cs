@@ -7,10 +7,10 @@ using SalesInventory.Application.Interfaces;
 
 namespace SalesInventory.Api.Controllers;
 
-// Sales orders: restricted to Admin and BanHang for all operations
+// Sales orders: Admin, BanHang and Kho may create/read; delete is Admin only
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AuthPolicies.SalesAccess)]
+[Authorize(Roles = $"{AppRoles.Admin},{AppRoles.BanHang},{AppRoles.Kho}")]
 public class SalesOrdersController : ControllerBase
 {
     private readonly ISalesOrderService _salesOrderService;
@@ -87,6 +87,7 @@ public class SalesOrdersController : ControllerBase
 
     /// <summary>Deletes a sales order and its line items.</summary>
     [HttpDelete("{id}")]
+    [Authorize(Roles = AppRoles.Admin)]
     public async Task<IActionResult> DeleteOrder(int id)
     {
         var deleted = await _salesOrderService.DeleteOrderAsync(id);

@@ -1,15 +1,16 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SalesInventory.Infrastructure.Identity;
 using SalesInventory.Application.Dtos;
 using SalesInventory.Domain.Entities;
 using SalesInventory.Application.Interfaces;
 
 namespace SalesInventory.Api.Controllers;
 
-// Purchase orders: whole controller restricted to Admin and Kho via Roles (ProductsController uses a policy instead)
+// Purchase orders (stock-in): whole controller requires the "CanManageInventory" policy (Admin or Kho)
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin,Kho")]
+[Authorize(Policy = AuthPolicies.CanManageInventory)]
 public class PurchaseOrdersController : ControllerBase
 {
     private readonly IPurchaseOrderService _purchaseOrderService;

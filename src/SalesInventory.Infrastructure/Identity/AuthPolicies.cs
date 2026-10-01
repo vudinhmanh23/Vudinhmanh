@@ -4,6 +4,6 @@ namespace SalesInventory.Infrastructure.Identity;
 public static class AuthPolicies
 {
     public const string AdminOnly = "AdminOnly";
-    public const string InventoryAccess = "InventoryAccess";
+    public const string CanManageInventory = "CanManageInventory";
     public const string SalesAccess = "SalesAccess";
 }

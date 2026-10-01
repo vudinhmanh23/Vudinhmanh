@@ -54,7 +54,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(AuthPolicies.AdminOnly, p => p.RequireRole(AppRoles.Admin));
-    options.AddPolicy(AuthPolicies.InventoryAccess, p => p.RequireRole(AppRoles.Admin, AppRoles.Kho));
+    options.AddPolicy(AuthPolicies.CanManageInventory, p => p.RequireRole(AppRoles.Admin, AppRoles.Kho));
     options.AddPolicy(AuthPolicies.SalesAccess, p => p.RequireRole(AppRoles.Admin, AppRoles.BanHang));
 });
 

@@ -37,6 +37,7 @@ Khi chạy ở môi trường Development, Swagger UI sẽ khả dụng để kh
 - [`docs/adr/0001-kien-truc-du-an.md`](docs/adr/0001-kien-truc-du-an.md) — ADR: lý do chọn kiến trúc, các phương án đã cân nhắc, hệ quả
 - [`docs/solution-structure.md`](docs/solution-structure.md) — Cấu trúc solution thực tế: danh sách project, trách nhiệm, sơ đồ phụ thuộc
 - [`docs/BACKLOG.md`](docs/BACKLOG.md) — Backlog tính năng đầy đủ theo module, dạng user story kèm ưu tiên MoSCoW và story point
+- [`docs/authorization.md`](docs/authorization.md) — Ma trận phân quyền theo vai trò, policy `CanManageInventory`, cách thử token trên Swagger
 - [`docs/PLAN.md`](docs/PLAN.md) — Kế hoạch triển khai theo tuần (8 tuần), milestone và timeline Mermaid
 
 ## Cấu hình bí mật (secrets)

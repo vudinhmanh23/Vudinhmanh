@@ -6,7 +6,9 @@
       "Bash(dotnet new *)",
       "Bash(dotnet sln *)",
       "Bash(dotnet build *)",
-      "Bash(timeout 5 dotnet run)"
+      "Bash(timeout 5 dotnet run)",
+      "Bash(cd *)",
+      "Bash(dotnet test *)"
     ]
   }
 }

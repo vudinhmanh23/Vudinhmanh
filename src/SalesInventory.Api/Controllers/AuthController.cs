@@ -57,6 +57,12 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Email hoặc mật khẩu không đúng" });
         }
 
+        // Locked accounts (see /api/admin/users/{id}/lock) must not receive a new token
+        if (await _userManager.IsLockedOutAsync(user))
+        {
+            return Unauthorized(new { message = "Tài khoản đã bị khóa" });
+        }
+
         var roles = await _userManager.GetRolesAsync(user);
         var token = _tokenService.GenerateToken(user.Id, user.Email, roles, out var expiresAtUtc);
 

@@ -71,14 +71,17 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<Supplier>(entity =>
         {
+            entity.Property(s => s.Code).IsRequired().HasMaxLength(50);
+            entity.HasIndex(s => s.Code).IsUnique();
             entity.Property(s => s.Name).IsRequired().HasMaxLength(200);
+            entity.Property(s => s.ContactPerson).HasMaxLength(200);
             entity.Property(s => s.Phone).HasMaxLength(20);
             entity.Property(s => s.Email).HasMaxLength(200);
             entity.Property(s => s.Address).HasMaxLength(300);
 
             // Seed a default supplier so seeded products have a valid SupplierId (required FK)
             entity.HasData(
-                new Supplier { Id = 1, Name = "Nhà cung cấp mặc định", Phone = "0900000000" }
+                new Supplier { Id = 1, Code = "SUP-001", Name = "Nhà cung cấp mặc định", Phone = "0900000000", IsActive = true, CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
             );
         });
 

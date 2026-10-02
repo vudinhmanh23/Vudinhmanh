@@ -25,7 +25,7 @@ public class SuppliersRoleTableTests : IClassFixture<CustomWebApplicationFactory
         var token = await AuthTestHelper.RegisterAndLoginAsync(client, role);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.PostAsJsonAsync("/api/suppliers", new { name = $"NCC {role}", phone = "0900000001" });
+        var response = await client.PostAsJsonAsync("/api/suppliers", new { code = $"SUP-{role}", name = $"NCC {role}", phone = "0900000001" });
 
         Assert.Equal(expected, response.StatusCode);
     }
@@ -33,7 +33,7 @@ public class SuppliersRoleTableTests : IClassFixture<CustomWebApplicationFactory
     [Fact]
     public async Task CreateSupplier_NoToken_Returns401()
     {
-        var response = await _factory.CreateClient().PostAsJsonAsync("/api/suppliers", new { name = "NCC anon" });
+        var response = await _factory.CreateClient().PostAsJsonAsync("/api/suppliers", new { code = "SUP-ANON", name = "NCC anon" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }

@@ -69,6 +69,6 @@ public class WriteAuthorizationTests : IClassFixture<CustomWebApplicationFactory
     private async Task<HttpResponseMessage> PostAsAsync(string url, string role)
     {
         var client = await ClientAsAsync(role);
-        return await client.PostAsJsonAsync(url, new { name = $"Test {Guid.NewGuid():N}", phone = "0900000001" });
+        return await client.PostAsJsonAsync(url, new { code = $"T-{Guid.NewGuid():N}"[..20], name = $"Test {Guid.NewGuid():N}", phone = "0900000001" });
     }
 }

@@ -10,4 +10,6 @@ public class ProductDto
     public int StockQuantity { get; set; }
     public int CategoryId { get; set; }
     public string? CategoryName { get; set; }
+    public int? SupplierId { get; set; }
+    public string? SupplierName { get; set; }
 }

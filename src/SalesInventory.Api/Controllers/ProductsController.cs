@@ -18,11 +18,13 @@ public class ProductsController : ControllerBase
 
     private readonly IProductService _productService;
     private readonly ICategoryService _categoryService;
+    private readonly ISupplierService _supplierService;
 
-    public ProductsController(IProductService productService, ICategoryService categoryService)
+    public ProductsController(IProductService productService, ICategoryService categoryService, ISupplierService supplierService)
     {
         _productService = productService;
         _categoryService = categoryService;
+        _supplierService = supplierService;
     }
 
     /// <summary>Gets all products.</summary>
@@ -33,7 +35,10 @@ public class ProductsController : ControllerBase
         var categories = await _categoryService.GetCategoriesAsync();
         var categoryNamesById = categories.ToDictionary(c => c.Id, c => c.Name);
 
-        return Ok(products.Select(p => ToDto(p, categoryNamesById.GetValueOrDefault(p.CategoryId))));
+        var suppliers = await _supplierService.GetSuppliersAsync();
+        var supplierNamesById = suppliers.ToDictionary(s => s.Id, s => s.Name);
+
+        return Ok(products.Select(p => ToDto(p, categoryNamesById.GetValueOrDefault(p.CategoryId), SupplierName(p, supplierNamesById))));
     }
 
     /// <summary>Gets all products belonging to a given category.</summary>
@@ -43,7 +48,10 @@ public class ProductsController : ControllerBase
         var products = await _productService.GetProductsByCategoryIdAsync(categoryId);
         var category = await _categoryService.GetCategoryAsync(categoryId);
 
-        return Ok(products.Select(p => ToDto(p, category?.Name)));
+        var suppliers = await _supplierService.GetSuppliersAsync();
+        var supplierNamesById = suppliers.ToDictionary(s => s.Id, s => s.Name);
+
+        return Ok(products.Select(p => ToDto(p, category?.Name, SupplierName(p, supplierNamesById))));
     }
 
     /// <summary>Gets a single product by id.</summary>
@@ -57,7 +65,8 @@ public class ProductsController : ControllerBase
         }
 
         var category = await _categoryService.GetCategoryAsync(product.CategoryId);
-        return Ok(ToDto(product, category?.Name));
+        var supplierName = await GetSupplierNameAsync(product.SupplierId);
+        return Ok(ToDto(product, category?.Name, supplierName));
     }
 
     /// <summary>Creates a new product.</summary>
@@ -80,7 +89,7 @@ public class ProductsController : ControllerBase
         {
             var created = await _productService.CreateProductAsync(product);
             var category = await _categoryService.GetCategoryAsync(created.CategoryId);
-            return CreatedAtAction(nameof(GetProduct), new { id = created.Id }, ToDto(created, category?.Name));
+            return CreatedAtAction(nameof(GetProduct), new { id = created.Id }, ToDto(created, category?.Name, await GetSupplierNameAsync(created.SupplierId)));
         }
         catch (ArgumentException ex)
         {
@@ -124,7 +133,22 @@ public class ProductsController : ControllerBase
         return deleted ? NoContent() : NotFound();
     }
 
-    private static ProductDto ToDto(Product product, string? categoryName)
+    private static string? SupplierName(Product product, IReadOnlyDictionary<int, string> supplierNamesById)
+    {
+        return product.SupplierId is int id ? supplierNamesById.GetValueOrDefault(id) : null;
+    }
+
+    private async Task<string?> GetSupplierNameAsync(int? supplierId)
+    {
+        if (supplierId is null)
+        {
+            return null;
+        }
+
+        return (await _supplierService.GetSupplierAsync(supplierId.Value))?.Name;
+    }
+
+    private static ProductDto ToDto(Product product, string? categoryName, string? supplierName)
     {
         return new ProductDto
         {
@@ -134,7 +158,9 @@ public class ProductsController : ControllerBase
             Price = product.Price,
             StockQuantity = product.StockQuantity,
             CategoryId = product.CategoryId,
-            CategoryName = categoryName
+            CategoryName = categoryName,
+            SupplierId = product.SupplierId,
+            SupplierName = supplierName
         };
     }
 }

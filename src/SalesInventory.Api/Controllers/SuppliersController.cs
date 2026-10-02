@@ -1,6 +1,7 @@
+using AutoMapper;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using SalesInventory.Application.Dtos;
 using SalesInventory.Application.Interfaces;
 using SalesInventory.Domain.Entities;
@@ -15,10 +16,20 @@ namespace SalesInventory.Api.Controllers;
 public class SuppliersController : ControllerBase
 {
     private readonly ISupplierService _supplierService;
+    private readonly IMapper _mapper;
+    private readonly IValidator<CreateSupplierDto> _createValidator;
+    private readonly IValidator<UpdateSupplierDto> _updateValidator;
 
-    public SuppliersController(ISupplierService supplierService)
+    public SuppliersController(
+        ISupplierService supplierService,
+        IMapper mapper,
+        IValidator<CreateSupplierDto> createValidator,
+        IValidator<UpdateSupplierDto> updateValidator)
     {
         _supplierService = supplierService;
+        _mapper = mapper;
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     /// <summary>Gets all suppliers.</summary>
@@ -26,7 +37,15 @@ public class SuppliersController : ControllerBase
     public async Task<ActionResult<IEnumerable<SupplierDto>>> GetSuppliers()
     {
         var suppliers = await _supplierService.GetSuppliersAsync();
-        return Ok(suppliers.Select(ToDto));
+        return Ok(_mapper.Map<IEnumerable<SupplierDto>>(suppliers));
+    }
+
+    /// <summary>Gets only the suppliers that are currently active.</summary>
+    [HttpGet("active")]
+    public async Task<ActionResult<IEnumerable<SupplierDto>>> GetActiveSuppliers()
+    {
+        var suppliers = await _supplierService.GetActiveSuppliersAsync();
+        return Ok(_mapper.Map<IEnumerable<SupplierDto>>(suppliers));
     }
 
     /// <summary>Gets a single supplier by id.</summary>
@@ -39,19 +58,25 @@ public class SuppliersController : ControllerBase
             return NotFound();
         }
 
-        return Ok(ToDto(supplier));
+        return Ok(_mapper.Map<SupplierDto>(supplier));
     }
 
     /// <summary>Creates a new supplier.</summary>
     [HttpPost]
     public async Task<ActionResult<SupplierDto>> CreateSupplier(CreateSupplierDto dto)
     {
-        var supplier = new Supplier { Name = dto.Name, Phone = dto.Phone, Email = dto.Email, Address = dto.Address };
+        var validation = await _createValidator.ValidateAsync(dto);
+        if (!validation.IsValid)
+        {
+            return ValidationFailure(validation);
+        }
+
+        var supplier = _mapper.Map<Supplier>(dto);
 
         try
         {
             var created = await _supplierService.CreateSupplierAsync(supplier);
-            return CreatedAtAction(nameof(GetSupplier), new { id = created.Id }, ToDto(created));
+            return CreatedAtAction(nameof(GetSupplier), new { id = created.Id }, _mapper.Map<SupplierDto>(created));
         }
         catch (ArgumentException ex)
         {
@@ -64,7 +89,13 @@ public class SuppliersController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateSupplier(int id, UpdateSupplierDto dto)
     {
-        var supplier = new Supplier { Name = dto.Name, Phone = dto.Phone, Email = dto.Email, Address = dto.Address };
+        var validation = await _updateValidator.ValidateAsync(dto);
+        if (!validation.IsValid)
+        {
+            return ValidationFailure(validation);
+        }
+
+        var supplier = _mapper.Map<Supplier>(dto);
 
         try
         {
@@ -78,31 +109,22 @@ public class SuppliersController : ControllerBase
         }
     }
 
-    /// <summary>Deletes a supplier.</summary>
+    /// <summary>Deactivates a supplier (soft delete: the record is kept, IsActive becomes false).</summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteSupplier(int id)
     {
-        try
-        {
-            var deleted = await _supplierService.DeleteSupplierAsync(id);
-            return deleted ? NoContent() : NotFound();
-        }
-        catch (DbUpdateException)
-        {
-            // Products or purchase orders still reference this supplier (FK is Restrict)
-            return Conflict(new { message = "Không thể xóa nhà cung cấp đang được sản phẩm hoặc đơn nhập kho sử dụng." });
-        }
+        var deleted = await _supplierService.DeleteSupplierAsync(id);
+        return deleted ? NoContent() : NotFound();
     }
 
-    private static SupplierDto ToDto(Supplier supplier)
+    // Converts FluentValidation failures into a standard 400 ValidationProblemDetails response
+    private ActionResult ValidationFailure(FluentValidation.Results.ValidationResult result)
     {
-        return new SupplierDto
+        foreach (var error in result.Errors)
         {
-            Id = supplier.Id,
-            Name = supplier.Name,
-            Phone = supplier.Phone,
-            Email = supplier.Email,
-            Address = supplier.Address
-        };
+            ModelState.AddModelError(error.PropertyName, error.ErrorMessage);
+        }
+
+        return ValidationProblem(ModelState);
     }
 }

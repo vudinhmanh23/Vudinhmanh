@@ -6,6 +6,7 @@ namespace SalesInventory.Application.Interfaces;
 public interface ISupplierService
 {
     Task<IEnumerable<Supplier>> GetSuppliersAsync();
+    Task<IEnumerable<Supplier>> GetActiveSuppliersAsync();
     Task<Supplier?> GetSupplierAsync(int id);
     Task<Supplier> CreateSupplierAsync(Supplier supplier);
     Task<bool> UpdateSupplierAsync(int id, Supplier supplier);

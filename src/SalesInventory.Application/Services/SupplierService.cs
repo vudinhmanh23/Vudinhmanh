@@ -17,6 +17,12 @@ public class SupplierService : ISupplierService
         return await _supplierRepository.GetAllAsync();
     }
 
+    public async Task<IEnumerable<Supplier>> GetActiveSuppliersAsync()
+    {
+        var suppliers = await _supplierRepository.GetAllAsync();
+        return suppliers.Where(s => s.IsActive);
+    }
+
     public async Task<Supplier?> GetSupplierAsync(int id)
     {
         return await _supplierRepository.GetByIdAsync(id);
@@ -24,11 +30,9 @@ public class SupplierService : ISupplierService
 
     public async Task<Supplier> CreateSupplierAsync(Supplier supplier)
     {
-        // Business rule: a supplier must have a non-empty name
-        if (string.IsNullOrWhiteSpace(supplier.Name))
-        {
-            throw new ArgumentException("Supplier name cannot be empty.", nameof(supplier));
-        }
+        await ValidateAsync(supplier, excludeId: null);
+
+        supplier.CreatedAt = DateTime.UtcNow;
 
         await _supplierRepository.AddAsync(supplier);
         await _supplierRepository.SaveChangesAsync();
@@ -44,13 +48,12 @@ public class SupplierService : ISupplierService
             return false;
         }
 
-        // Business rule: a supplier must have a non-empty name
-        if (string.IsNullOrWhiteSpace(supplier.Name))
-        {
-            throw new ArgumentException("Supplier name cannot be empty.", nameof(supplier));
-        }
+        await ValidateAsync(supplier, excludeId: id);
 
+        existing.Code = supplier.Code;
         existing.Name = supplier.Name;
+        existing.ContactPerson = supplier.ContactPerson;
+        existing.IsActive = supplier.IsActive;
         existing.Phone = supplier.Phone;
         existing.Email = supplier.Email;
         existing.Address = supplier.Address;
@@ -69,9 +72,34 @@ public class SupplierService : ISupplierService
             return false;
         }
 
-        _supplierRepository.Delete(existing);
+        // Soft delete: keep the record so products and purchase orders keep their history
+        existing.IsActive = false;
+
+        _supplierRepository.Update(existing);
         await _supplierRepository.SaveChangesAsync();
 
         return true;
+    }
+
+    // Business rules: name and code are required, and the code must be unique across suppliers
+    private async Task ValidateAsync(Supplier supplier, int? excludeId)
+    {
+        if (string.IsNullOrWhiteSpace(supplier.Name))
+        {
+            throw new ArgumentException("Supplier name cannot be empty.", nameof(supplier));
+        }
+
+        if (string.IsNullOrWhiteSpace(supplier.Code))
+        {
+            throw new ArgumentException("Supplier code cannot be empty.", nameof(supplier));
+        }
+
+        supplier.Code = supplier.Code.Trim();
+
+        var all = await _supplierRepository.GetAllAsync();
+        if (all.Any(s => s.Id != excludeId && string.Equals(s.Code, supplier.Code, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new ArgumentException($"Supplier code '{supplier.Code}' already exists.", nameof(supplier));
+        }
     }
 }

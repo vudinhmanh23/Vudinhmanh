@@ -56,7 +56,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
         if (!db.Suppliers.Any(s => s.Id == 1))
         {
-            db.Suppliers.Add(new Supplier { Id = 1, Name = "Test Supplier", Phone = "0900000000" });
+            db.Suppliers.Add(new Supplier { Id = 1, Code = "SUP-001", Name = "Test Supplier", Phone = "0900000000" });
         }
 
         if (!db.Products.Any(p => p.Id == 1))

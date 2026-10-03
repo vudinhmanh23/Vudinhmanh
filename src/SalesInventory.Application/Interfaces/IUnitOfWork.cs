@@ -10,4 +10,5 @@ public interface IUnitOfWork
 public interface IUnitOfWorkTransaction : IAsyncDisposable
 {
     Task CommitAsync();
+    Task RollbackAsync();
 }

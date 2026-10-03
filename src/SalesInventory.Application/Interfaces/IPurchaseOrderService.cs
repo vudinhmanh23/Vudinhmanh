@@ -8,9 +8,12 @@ public interface IPurchaseOrderService
     Task<IReadOnlyList<PurchaseOrder>> GetPurchaseOrdersAsync();
     Task<PurchaseOrder?> GetPurchaseOrderAsync(int id);
 
-    // Computes totals, increases product stock and logs stock movements in one transaction
+    // Computes totals and saves the order as a Draft; stock is not touched until it is approved
     Task<PurchaseOrder> CreatePurchaseOrderAsync(PurchaseOrder purchaseOrder);
 
-    // Removes the order and reverses its stock effect in one transaction
+    // Draft -> Approved: increases stock and logs one Import movement per line, all in one transaction
+    Task<PurchaseOrder> ApprovePurchaseOrderAsync(int id);
+
+    // Removes the order; an Approved order also has its stock effect reversed, in one transaction
     Task<bool> DeletePurchaseOrderAsync(int id);
 }

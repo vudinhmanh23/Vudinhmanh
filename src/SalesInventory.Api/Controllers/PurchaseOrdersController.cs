@@ -52,8 +52,8 @@ public class PurchaseOrdersController : ControllerBase
     }
 
     /// <summary>
-    /// Creates a purchase order (stock-in). The server computes every line total and the order total,
-    /// increases each product's stock and logs a stock movement, all in one transaction.
+    /// Creates a purchase order as a Draft. The server computes every line total and the order total.
+    /// Stock is not changed until the order is approved (POST /api/purchase-orders/{id}/approve).
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<PurchaseOrderDto>> CreatePurchaseOrder(CreatePurchaseOrderDto dto)
@@ -85,7 +85,35 @@ public class PurchaseOrdersController : ControllerBase
         }
     }
 
-    /// <summary>Deletes a purchase order and its line items, and takes the received goods back out of stock.</summary>
+    /// <summary>
+    /// Approves a Draft purchase order: adds every line's quantity to the product's stock and logs one Import
+    /// stock movement per line, all in one transaction. Returns 409 if the order is not a Draft.
+    /// </summary>
+    /// <response code="200">The approved order.</response>
+    /// <response code="404">No purchase order with this id.</response>
+    /// <response code="409">The order is not in the Draft state.</response>
+    [HttpPost("{id}/approve")]
+    [ProducesResponseType(typeof(PurchaseOrderDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PurchaseOrderDto>> ApprovePurchaseOrder(int id)
+    {
+        try
+        {
+            var approved = await _purchaseOrderService.ApprovePurchaseOrderAsync(id);
+            return Ok(_mapper.Map<PurchaseOrderDto>(approved));
+        }
+        catch (NotFoundException ex)
+        {
+            return Problem(title: "Không tìm thấy phiếu nhập", detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
+        }
+        catch (ConflictException ex)
+        {
+            return Problem(title: "Trạng thái phiếu không hợp lệ", detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
+        }
+    }
+
+    /// <summary>Deletes a purchase order and its line items; an Approved order also has its stock taken back.</summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeletePurchaseOrder(int id)
     {

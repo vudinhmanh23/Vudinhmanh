@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using SalesInventory.Domain.Enums;
 
 namespace SalesInventory.Domain.Entities;
 
@@ -12,6 +13,9 @@ public class PurchaseOrder
     [Required]
     [MaxLength(30)]
     public string Code { get; set; } = string.Empty;
+
+    // New orders start as Draft; approving one increases stock
+    public PurchaseOrderStatus Status { get; set; } = PurchaseOrderStatus.Draft;
 
     [Required]
     public DateTime OrderDate { get; set; }

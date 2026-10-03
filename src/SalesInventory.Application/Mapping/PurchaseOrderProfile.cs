@@ -26,6 +26,7 @@ public class PurchaseOrderProfile : Profile
         CreateMap<CreatePurchaseOrderDto, PurchaseOrder>()
             .ForMember(p => p.Id, o => o.Ignore())
             .ForMember(p => p.Code, o => o.Ignore())
+            .ForMember(p => p.Status, o => o.Ignore())
             .ForMember(p => p.Supplier, o => o.Ignore())
             .ForMember(p => p.TotalAmount, o => o.Ignore())
             .ForMember(p => p.PurchaseOrderItems, o => o.MapFrom(s => s.Items));

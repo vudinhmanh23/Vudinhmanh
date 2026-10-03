@@ -29,6 +29,8 @@ public class UnitOfWork : IUnitOfWork
 
         public Task CommitAsync() => _transaction.CommitAsync();
 
+        public Task RollbackAsync() => _transaction.RollbackAsync();
+
         public ValueTask DisposeAsync() => _transaction.DisposeAsync();
     }
 }

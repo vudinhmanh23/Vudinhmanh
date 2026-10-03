@@ -5,11 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SalesInventory.Application.Dtos;
 using SalesInventory.Domain.Entities;
+using SalesInventory.Domain.Enums;
 using SalesInventory.Infrastructure.Persistence;
 
 namespace SalesInventory.Api.Tests;
 
-// Stock-in business rules: server-side totals, stock increase, stock movements, validation, 404
+// Stock-in business rules: draft on create, approve adds stock + movements, validation, ProblemDetails, 404/409
 public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly CustomWebApplicationFactory _factory;
@@ -67,6 +68,13 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         }
     }
 
+    private static async Task<PurchaseOrderDto> CreateAsync(HttpClient client, CreatePurchaseOrderDto dto)
+    {
+        var response = await client.PostAsJsonAsync("/api/purchase-orders", dto);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<PurchaseOrderDto>())!;
+    }
+
     private static CreatePurchaseOrderDto Dto(params (int productId, int quantity, decimal unitPrice)[] lines) => new()
     {
         OrderDate = DateTime.UtcNow,
@@ -81,7 +89,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     };
 
     [Fact]
-    public async Task Create_ComputesTotalsIncreasesStockAndLogsMovements()
+    public async Task Create_ComputesTotals_AsDraft_AndDoesNotTouchStock()
     {
         var client = await AdminClientAsync();
         var p1 = await AddProductAsync(stock: 10);
@@ -92,19 +100,103 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<PurchaseOrderDto>();
         Assert.NotNull(created);
-        Assert.Equal(300m + 501m, created!.TotalAmount);
+        Assert.Equal("Draft", created!.Status);
+        Assert.Equal(300m + 501m, created.TotalAmount);
         Assert.Equal(new[] { 300m, 501m }, created.Items.Select(i => i.LineTotal).OrderBy(x => x));
+
+        // A draft changes nothing in stock and logs no movement
+        Assert.Equal(10, await GetStockAsync(p1));
+        Assert.Equal(5, await GetStockAsync(p2));
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Empty(await db.StockMovements.Where(m => m.ReferenceId == created.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Approve_Draft_IncreasesStockForEveryLine_AndLogsImportMovements()
+    {
+        var client = await AdminClientAsync();
+        var p1 = await AddProductAsync(stock: 10);
+        var p2 = await AddProductAsync(stock: 5);
+        var created = await CreateAsync(client, Dto((p1, 3, 100m), (p2, 2, 250.50m)));
+
+        var response = await client.PostAsync($"/api/purchase-orders/{created.Id}/approve", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var approved = await response.Content.ReadFromJsonAsync<PurchaseOrderDto>();
+        Assert.Equal("Approved", approved!.Status);
 
         Assert.Equal(13, await GetStockAsync(p1));
         Assert.Equal(7, await GetStockAsync(p2));
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var movements = await db.StockMovements.Where(m => m.RefId == created.Id).ToListAsync();
+        var movements = await db.StockMovements.Where(m => m.ReferenceId == created.Id).ToListAsync();
         Assert.Equal(2, movements.Count);
-        Assert.All(movements, m => Assert.Equal("Purchase", m.Reason));
-        Assert.Equal(3, movements.Single(m => m.ProductId == p1).ChangeQuantity);
-        Assert.Equal(2, movements.Single(m => m.ProductId == p2).ChangeQuantity);
+        Assert.All(movements, m =>
+        {
+            Assert.Equal(StockMovementType.Import, m.MovementType);
+            Assert.Equal("PurchaseOrder", m.ReferenceType);
+            Assert.True(m.Quantity > 0);
+        });
+        Assert.Equal(3, movements.Single(m => m.ProductId == p1).Quantity);
+        Assert.Equal(2, movements.Single(m => m.ProductId == p2).Quantity);
+        Assert.Equal(PurchaseOrderStatus.Approved, (await db.PurchaseOrders.SingleAsync(o => o.Id == created.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Approve_Twice_Returns409ProblemDetails_AndStockIsNotAddedAgain()
+    {
+        var client = await AdminClientAsync();
+        var p = await AddProductAsync(stock: 10);
+        var created = await CreateAsync(client, Dto((p, 4, 10m)));
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/purchase-orders/{created.Id}/approve", null)).StatusCode);
+
+        var second = await client.PostAsync($"/api/purchase-orders/{created.Id}/approve", null);
+
+        await AssertProblemAsync(second, HttpStatusCode.Conflict, "Đã duyệt");
+        Assert.Equal(14, await GetStockAsync(p));
+    }
+
+    [Fact]
+    public async Task Approve_CancelledOrder_Returns409()
+    {
+        var client = await AdminClientAsync();
+        var p = await AddProductAsync(stock: 10);
+        var created = await CreateAsync(client, Dto((p, 4, 10m)));
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.PurchaseOrders.SingleAsync(o => o.Id == created.Id)).Status = PurchaseOrderStatus.Cancelled;
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsync($"/api/purchase-orders/{created.Id}/approve", null);
+
+        await AssertProblemAsync(response, HttpStatusCode.Conflict, "Đã hủy");
+        Assert.Equal(10, await GetStockAsync(p));
+    }
+
+    [Fact]
+    public async Task Approve_UnknownOrder_Returns404ProblemDetails()
+    {
+        var client = await AdminClientAsync();
+
+        var response = await client.PostAsync("/api/purchase-orders/99999/approve", null);
+
+        await AssertProblemAsync(response, HttpStatusCode.NotFound, "99999");
+    }
+
+    [Fact]
+    public async Task Approve_WrongRoleOrNoToken_IsRejected()
+    {
+        var noToken = _factory.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await noToken.PostAsync("/api/purchase-orders/1/approve", null)).StatusCode);
+
+        var sales = _factory.CreateClient();
+        var token = await AuthTestHelper.RegisterAndLoginAsync(sales, "BanHang");
+        sales.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        Assert.Equal(HttpStatusCode.Forbidden, (await sales.PostAsync("/api/purchase-orders/1/approve", null)).StatusCode);
     }
 
     [Fact]
@@ -128,9 +220,9 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         var client = await AdminClientAsync();
         var p = await AddProductAsync(stock: 0);
 
-        var response = await client.PostAsJsonAsync("/api/purchase-orders", Dto((p, 4, 10m), (p, 6, 10m)));
+        var created = await CreateAsync(client, Dto((p, 4, 10m), (p, 6, 10m)));
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/purchase-orders/{created.Id}/approve", null)).StatusCode);
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.Equal(10, await GetStockAsync(p));
     }
 
@@ -236,20 +328,37 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Delete_ReversesStockAndLogsNegativeMovement()
+    public async Task Delete_ApprovedOrder_ReversesStockAndLogsExportMovement()
     {
         var client = await AdminClientAsync();
         var p = await AddProductAsync(stock: 10);
-        var created = await (await client.PostAsJsonAsync("/api/purchase-orders", Dto((p, 5, 10m))))
-            .Content.ReadFromJsonAsync<PurchaseOrderDto>();
+        var created = await CreateAsync(client, Dto((p, 5, 10m)));
+        await client.PostAsync($"/api/purchase-orders/{created.Id}/approve", null);
         Assert.Equal(15, await GetStockAsync(p));
 
-        var response = await client.DeleteAsync($"/api/purchase-orders/{created!.Id}");
+        var response = await client.DeleteAsync($"/api/purchase-orders/{created.Id}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(10, await GetStockAsync(p));
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.Contains(db.StockMovements, m => m.RefId == created.Id && m.Reason == "PurchaseCancel" && m.ChangeQuantity == -5);
+        Assert.Contains(db.StockMovements, m =>
+            m.ReferenceId == created.Id && m.MovementType == StockMovementType.Export && m.Quantity == -5);
+    }
+
+    [Fact]
+    public async Task Delete_DraftOrder_DoesNotTouchStock()
+    {
+        var client = await AdminClientAsync();
+        var p = await AddProductAsync(stock: 10);
+        var created = await CreateAsync(client, Dto((p, 5, 10m)));
+
+        var response = await client.DeleteAsync($"/api/purchase-orders/{created.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(10, await GetStockAsync(p));
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Empty(await db.StockMovements.Where(m => m.ReferenceId == created.Id).ToListAsync());
     }
 }

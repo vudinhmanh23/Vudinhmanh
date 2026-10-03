@@ -8,6 +8,14 @@ public class NotFoundException : Exception
     }
 }
 
+// The request conflicts with the current state of the record; the API maps this to 409 ProblemDetails
+public class ConflictException : Exception
+{
+    public ConflictException(string message) : base(message)
+    {
+    }
+}
+
 // A business rule was violated; the API maps this to 400 ProblemDetails
 public class BusinessRuleException : Exception
 {

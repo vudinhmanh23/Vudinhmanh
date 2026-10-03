@@ -11,7 +11,7 @@ Mã trạng thái chung: **401** khi không có token hoặc token không hợp 
 | `POST/PUT/DELETE /api/products` (nhập/điều chỉnh tồn kho) | 401 | 403 | OK | OK |
 | `POST/PUT/DELETE /api/categories` | 401 | 403 | OK | OK |
 | `/api/suppliers` (CRUD) | 401 | 403 | OK | OK |
-| `/api/purchase-orders` (đơn nhập kho) | 401 | 403 | OK | OK |
+| `/api/purchase-orders` (đơn nhập kho, gồm `POST /{id}/approve`) | 401 | 403 | OK | OK |
 | `GET/POST /api/salesorders` (đơn bán) | 401 | OK | OK | OK |
 | `DELETE /api/salesorders/{id}` | 401 | 403 | 403 | OK |
 | `/api/users`, `/api/admin/employees`, `POST /api/auth/assign-role` | 401 | 403 | 403 | OK |

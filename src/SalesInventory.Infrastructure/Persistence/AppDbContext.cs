@@ -148,7 +148,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<StockMovement>(entity =>
         {
-            entity.Property(sm => sm.Reason).IsRequired().HasMaxLength(50);
+            entity.Property(sm => sm.MovementType).HasConversion<int>();
+            entity.Property(sm => sm.ReferenceType).IsRequired().HasMaxLength(50);
+            entity.Property(sm => sm.Note).HasMaxLength(500);
 
             entity.HasOne(sm => sm.Product)
                 .WithMany()
@@ -156,7 +158,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasIndex(sm => sm.ProductId);
-            entity.HasIndex(sm => new { sm.Reason, sm.RefId });
+            entity.HasIndex(sm => new { sm.ReferenceType, sm.ReferenceId });
         });
     }
 }

@@ -19,7 +19,7 @@ public class RoleAccessMatrixTests : IClassFixture<CustomWebApplicationFactory>
 
     [Theory]
     [InlineData("/api/products")]
-    [InlineData("/api/purchaseorders")]
+    [InlineData("/api/purchase-orders")]
     [InlineData("/api/salesorders")]
     [InlineData("/api/suppliers")]
     [InlineData("/api/categories")]
@@ -32,7 +32,7 @@ public class RoleAccessMatrixTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Theory]
-    [InlineData("/api/purchaseorders", "BanHang")]
+    [InlineData("/api/purchase-orders", "BanHang")]
     [InlineData("/api/suppliers", "BanHang")]
     [InlineData("/api/users", "Kho")]
     [InlineData("/api/users", "BanHang")]
@@ -46,8 +46,8 @@ public class RoleAccessMatrixTests : IClassFixture<CustomWebApplicationFactory>
     [Theory]
     [InlineData("/api/products", "Admin")]
     [InlineData("/api/products", "Kho")]
-    [InlineData("/api/purchaseorders", "Admin")]
-    [InlineData("/api/purchaseorders", "Kho")]
+    [InlineData("/api/purchase-orders", "Admin")]
+    [InlineData("/api/purchase-orders", "Kho")]
     [InlineData("/api/products", "BanHang")]
     [InlineData("/api/suppliers", "Admin")]
     [InlineData("/api/suppliers", "Kho")]

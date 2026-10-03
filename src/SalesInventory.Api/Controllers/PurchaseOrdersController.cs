@@ -1,7 +1,10 @@
+using AutoMapper;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SalesInventory.Infrastructure.Identity;
 using SalesInventory.Application.Dtos;
+using SalesInventory.Application.Exceptions;
 using SalesInventory.Domain.Entities;
 using SalesInventory.Application.Interfaces;
 
@@ -9,32 +12,33 @@ namespace SalesInventory.Api.Controllers;
 
 // Purchase orders (stock-in): whole controller requires the "CanManageInventory" policy (Admin or Kho)
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/purchase-orders")]
 [Authorize(Policy = AuthPolicies.CanManageInventory)]
 public class PurchaseOrdersController : ControllerBase
 {
     private readonly IPurchaseOrderService _purchaseOrderService;
-    private readonly IProductService _productService;
+    private readonly IMapper _mapper;
+    private readonly IValidator<CreatePurchaseOrderDto> _createValidator;
 
-    public PurchaseOrdersController(IPurchaseOrderService purchaseOrderService, IProductService productService)
+    public PurchaseOrdersController(
+        IPurchaseOrderService purchaseOrderService,
+        IMapper mapper,
+        IValidator<CreatePurchaseOrderDto> createValidator)
     {
         _purchaseOrderService = purchaseOrderService;
-        _productService = productService;
+        _mapper = mapper;
+        _createValidator = createValidator;
     }
 
-    /// <summary>Gets all purchase orders.</summary>
+    /// <summary>Gets all purchase orders, newest first.</summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<PurchaseOrderDto>>> GetPurchaseOrders()
     {
         var orders = await _purchaseOrderService.GetPurchaseOrdersAsync();
-        var items = await _purchaseOrderService.GetPurchaseOrderItemsAsync();
-        var itemsByOrderId = items.ToLookup(i => i.PurchaseOrderId);
-        var productNamesById = await GetProductNamesByIdAsync();
-
-        return Ok(orders.Select(o => ToDto(o, itemsByOrderId[o.Id], productNamesById)));
+        return Ok(_mapper.Map<IEnumerable<PurchaseOrderDto>>(orders));
     }
 
-    /// <summary>Gets a single purchase order by id.</summary>
+    /// <summary>Gets a single purchase order, with its line items, by id.</summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<PurchaseOrderDto>> GetPurchaseOrder(int id)
     {
@@ -44,75 +48,67 @@ public class PurchaseOrdersController : ControllerBase
             return NotFound();
         }
 
-        var items = await _purchaseOrderService.GetPurchaseOrderItemsAsync();
-        var productNamesById = await GetProductNamesByIdAsync();
-
-        return Ok(ToDto(order, items.Where(i => i.PurchaseOrderId == id), productNamesById));
+        return Ok(_mapper.Map<PurchaseOrderDto>(order));
     }
 
-    /// <summary>Creates a new purchase order (stock-in) with its line items.</summary>
+    /// <summary>
+    /// Creates a purchase order (stock-in). The server computes every line total and the order total,
+    /// increases each product's stock and logs a stock movement, all in one transaction.
+    /// </summary>
     [HttpPost]
     public async Task<ActionResult<PurchaseOrderDto>> CreatePurchaseOrder(CreatePurchaseOrderDto dto)
     {
-        var order = new PurchaseOrder
+        var validation = await _createValidator.ValidateAsync(dto);
+        if (!validation.IsValid)
         {
-            OrderDate = dto.OrderDate,
-            SupplierId = dto.SupplierId
-        };
+            return ValidationFailure(validation);
+        }
 
-        var items = dto.Items.Select(i => new PurchaseOrderItem
-        {
-            ProductId = i.ProductId,
-            Quantity = i.Quantity,
-            UnitPrice = i.UnitPrice
-        });
+        var order = _mapper.Map<PurchaseOrder>(dto);
 
         try
         {
-            var created = await _purchaseOrderService.CreatePurchaseOrderAsync(order, items);
-            var createdItems = await _purchaseOrderService.GetPurchaseOrderItemsAsync();
-            var productNamesById = await GetProductNamesByIdAsync();
+            var created = await _purchaseOrderService.CreatePurchaseOrderAsync(order);
 
-            return CreatedAtAction(
-                nameof(GetPurchaseOrder),
-                new { id = created.Id },
-                ToDto(created, createdItems.Where(i => i.PurchaseOrderId == created.Id), productNamesById));
+            // Reload so the response includes product names for the line items
+            var loaded = await _purchaseOrderService.GetPurchaseOrderAsync(created.Id);
+            return CreatedAtAction(nameof(GetPurchaseOrder), new { id = created.Id }, _mapper.Map<PurchaseOrderDto>(loaded));
         }
-        catch (ArgumentException ex)
+        catch (NotFoundException ex)
         {
-            // Business validation failure from the service layer
-            return BadRequest(ex.Message);
+            // Unknown SupplierId / ProductId
+            return Problem(title: "Referenced record not found", detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
+        }
+        catch (BusinessRuleException ex)
+        {
+            return Problem(title: "Business rule violated", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
         }
     }
 
-    /// <summary>Deletes a purchase order and its line items.</summary>
+    /// <summary>Deletes a purchase order and its line items, and takes the received goods back out of stock.</summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeletePurchaseOrder(int id)
     {
-        var deleted = await _purchaseOrderService.DeletePurchaseOrderAsync(id);
-        return deleted ? NoContent() : NotFound();
-    }
-
-    private async Task<Dictionary<int, string>> GetProductNamesByIdAsync()
-    {
-        var products = await _productService.GetProductsAsync();
-        return products.ToDictionary(p => p.Id, p => p.Name);
-    }
-
-    private static PurchaseOrderDto ToDto(PurchaseOrder order, IEnumerable<PurchaseOrderItem> items, Dictionary<int, string> productNamesById)
-    {
-        return new PurchaseOrderDto
+        try
         {
-            Id = order.Id,
-            OrderDate = order.OrderDate,
-            SupplierId = order.SupplierId,
-            Items = items.Select(i => new PurchaseOrderItemDto
-            {
-                ProductId = i.ProductId,
-                ProductName = productNamesById.GetValueOrDefault(i.ProductId),
-                Quantity = i.Quantity,
-                UnitPrice = i.UnitPrice
-            }).ToList()
-        };
+            var deleted = await _purchaseOrderService.DeletePurchaseOrderAsync(id);
+            return deleted ? NoContent() : NotFound();
+        }
+        catch (BusinessRuleException ex)
+        {
+            // e.g. part of the received stock was already sold, so it cannot be taken back
+            return Problem(title: "Business rule violated", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+    }
+
+    // Converts FluentValidation failures into a standard 400 ValidationProblemDetails response
+    private ActionResult ValidationFailure(FluentValidation.Results.ValidationResult result)
+    {
+        foreach (var error in result.Errors)
+        {
+            ModelState.AddModelError(error.PropertyName, error.ErrorMessage);
+        }
+
+        return ValidationProblem(ModelState);
     }
 }

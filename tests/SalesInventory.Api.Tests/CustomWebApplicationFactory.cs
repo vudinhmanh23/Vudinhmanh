@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SalesInventory.Infrastructure.Persistence;
@@ -34,7 +35,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 services.Remove(descriptor);
             }
 
-            services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(_databaseName));
+            // The InMemory provider has no real transactions; ignore its warning so services that
+            // BeginTransaction still run (atomic rollback is only verifiable against SQL Server)
+            services.AddDbContext<AppDbContext>(options => options
+                .UseInMemoryDatabase(_databaseName)
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
         });
     }
 

@@ -5,7 +5,7 @@ using SalesInventory.Application.Dtos;
 
 namespace SalesInventory.Api.Tests;
 
-// Stock-in endpoint: POST /api/purchaseorders is restricted to Admin/Kho
+// Stock-in endpoint: POST /api/purchase-orders is restricted to Admin/Kho
 public class PurchaseOrdersAuthorizationTests : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly CustomWebApplicationFactory _factory;
@@ -30,7 +30,7 @@ public class PurchaseOrdersAuthorizationTests : IClassFixture<CustomWebApplicati
     {
         var client = _factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/api/purchaseorders", NewPurchaseOrderDto());
+        var response = await client.PostAsJsonAsync("/api/purchase-orders", NewPurchaseOrderDto());
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -42,7 +42,7 @@ public class PurchaseOrdersAuthorizationTests : IClassFixture<CustomWebApplicati
         var token = await AuthTestHelper.RegisterAndLoginAsync(client, "BanHang");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.PostAsJsonAsync("/api/purchaseorders", NewPurchaseOrderDto());
+        var response = await client.PostAsJsonAsync("/api/purchase-orders", NewPurchaseOrderDto());
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -54,7 +54,7 @@ public class PurchaseOrdersAuthorizationTests : IClassFixture<CustomWebApplicati
         var token = await AuthTestHelper.RegisterAndLoginAsync(client, "Admin");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.PostAsJsonAsync("/api/purchaseorders", NewPurchaseOrderDto());
+        var response = await client.PostAsJsonAsync("/api/purchase-orders", NewPurchaseOrderDto());
 
         // POST returns 201 Created on success, the "authorized" counterpart to 401/403
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);

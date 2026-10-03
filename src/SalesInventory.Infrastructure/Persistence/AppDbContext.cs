@@ -19,6 +19,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
     public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -118,6 +119,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<PurchaseOrder>(entity =>
         {
+            entity.Property(po => po.Code).IsRequired().HasMaxLength(30);
+            entity.HasIndex(po => po.Code).IsUnique();
+            entity.Property(po => po.TotalAmount).HasColumnType("decimal(18,2)");
+            entity.Property(po => po.Note).HasMaxLength(500);
+
             entity.HasOne(po => po.Supplier)
                 .WithMany()
                 .HasForeignKey(po => po.SupplierId)
@@ -127,6 +133,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<PurchaseOrderItem>(entity =>
         {
             entity.Property(poi => poi.UnitPrice).HasColumnType("decimal(18,2)");
+            entity.Property(poi => poi.LineTotal).HasColumnType("decimal(18,2)");
 
             entity.HasOne(poi => poi.PurchaseOrder)
                 .WithMany(po => po.PurchaseOrderItems)
@@ -137,6 +144,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(poi => poi.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StockMovement>(entity =>
+        {
+            entity.Property(sm => sm.Reason).IsRequired().HasMaxLength(50);
+
+            entity.HasOne(sm => sm.Product)
+                .WithMany()
+                .HasForeignKey(sm => sm.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(sm => sm.ProductId);
+            entity.HasIndex(sm => new { sm.Reason, sm.RefId });
         });
     }
 }

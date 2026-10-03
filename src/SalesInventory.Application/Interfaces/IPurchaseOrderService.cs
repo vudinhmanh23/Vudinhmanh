@@ -5,9 +5,12 @@ namespace SalesInventory.Application.Interfaces;
 // Business-facing operations for PurchaseOrder (stock-in), on top of the repository layer
 public interface IPurchaseOrderService
 {
-    Task<IEnumerable<PurchaseOrder>> GetPurchaseOrdersAsync();
+    Task<IReadOnlyList<PurchaseOrder>> GetPurchaseOrdersAsync();
     Task<PurchaseOrder?> GetPurchaseOrderAsync(int id);
-    Task<IEnumerable<PurchaseOrderItem>> GetPurchaseOrderItemsAsync();
-    Task<PurchaseOrder> CreatePurchaseOrderAsync(PurchaseOrder purchaseOrder, IEnumerable<PurchaseOrderItem> items);
+
+    // Computes totals, increases product stock and logs stock movements in one transaction
+    Task<PurchaseOrder> CreatePurchaseOrderAsync(PurchaseOrder purchaseOrder);
+
+    // Removes the order and reverses its stock effect in one transaction
     Task<bool> DeletePurchaseOrderAsync(int id);
 }

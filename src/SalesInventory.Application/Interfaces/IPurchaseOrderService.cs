@@ -14,6 +14,9 @@ public interface IPurchaseOrderService
     // Draft -> Approved: increases stock and logs one Import movement per line, all in one transaction
     Task<PurchaseOrder> ApprovePurchaseOrderAsync(int id);
 
+    // Approved -> Cancelled: takes the added stock back and logs one negative Adjustment movement per line, in one transaction
+    Task<PurchaseOrder> CancelPurchaseOrderAsync(int id);
+
     // Removes the order; an Approved order also has its stock effect reversed, in one transaction
     Task<bool> DeletePurchaseOrderAsync(int id);
 }

@@ -107,6 +107,45 @@ public class PurchaseOrdersController : ControllerBase
         {
             return Problem(title: "Không tìm thấy phiếu nhập", detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
         }
+        catch (BusinessRuleException ex)
+        {
+            // e.g. the order has no lines to approve
+            return Problem(title: "Không thể duyệt phiếu nhập", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+        catch (ConflictException ex)
+        {
+            return Problem(title: "Trạng thái phiếu không hợp lệ", detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
+        }
+    }
+
+    /// <summary>
+    /// Cancels an Approved purchase order: takes each line's quantity back out of stock and logs one negative
+    /// Adjustment movement per line, all in one transaction. Returns 409 if the order is not Approved.
+    /// </summary>
+    /// <response code="200">The cancelled order.</response>
+    /// <response code="400">Stock is too low to take the goods back (part of it was already sold).</response>
+    /// <response code="404">No purchase order with this id.</response>
+    /// <response code="409">The order is not in the Approved state.</response>
+    [HttpPost("{id}/cancel")]
+    [ProducesResponseType(typeof(PurchaseOrderDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PurchaseOrderDto>> CancelPurchaseOrder(int id)
+    {
+        try
+        {
+            var cancelled = await _purchaseOrderService.CancelPurchaseOrderAsync(id);
+            return Ok(_mapper.Map<PurchaseOrderDto>(cancelled));
+        }
+        catch (NotFoundException ex)
+        {
+            return Problem(title: "Không tìm thấy phiếu nhập", detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
+        }
+        catch (BusinessRuleException ex)
+        {
+            return Problem(title: "Không thể hủy phiếu nhập", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
         catch (ConflictException ex)
         {
             return Problem(title: "Trạng thái phiếu không hợp lệ", detail: ex.Message, statusCode: StatusCodes.Status409Conflict);

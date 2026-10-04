@@ -19,8 +19,10 @@ public class ProductsAuthorizationTests : IClassFixture<CustomWebApplicationFact
     {
         Name = "Integration Test Product",
         Sku = $"SKU-TEST-{Guid.NewGuid():N}",
-        Price = 10000,
-        StockQuantity = 5,
+        Unit = "cái",
+        PurchasePrice = 8000,
+        SalePrice = 10000,
+        Quantity = 5,
         CategoryId = 1 // seeded via AppDbContext.OnModelCreating HasData
     };
 
@@ -57,5 +59,39 @@ public class ProductsAuthorizationTests : IClassFixture<CustomWebApplicationFact
 
         // POST returns 201 Created on success, the "authorized" counterpart to 401/403
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateProduct_SalePriceBelowPurchasePrice_Returns400ProblemDetails()
+    {
+        var client = _factory.CreateClient();
+        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "Kho");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var dto = NewProductDto();
+        dto.PurchasePrice = 20000;
+        dto.SalePrice = 10000;
+
+        var response = await client.PostAsJsonAsync("/api/products", dto);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains("SalePrice", problem!.Errors.Keys);
+        Assert.Contains("Giá bán không được nhỏ hơn giá nhập", problem.Errors["SalePrice"]);
+    }
+
+    [Fact]
+    public async Task CreateProduct_DuplicateSku_Returns409OnSecondRequest()
+    {
+        var client = _factory.CreateClient();
+        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "Kho");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var dto = NewProductDto();
+
+        var first = await client.PostAsJsonAsync("/api/products", dto);
+        var second = await client.PostAsJsonAsync("/api/products", dto);
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
     }
 }

@@ -112,6 +112,13 @@ public class PurchaseOrderService : IPurchaseOrderService
                 $"Không thể duyệt phiếu nhập {order.Code}: phiếu đang ở trạng thái \"{StatusLabel(order.Status)}\". Chỉ có thể duyệt phiếu ở trạng thái \"{StatusLabel(PurchaseOrderStatus.Draft)}\".");
         }
 
+        // An order without lines would be "approved" while changing nothing, so refuse it (HTTP 400)
+        if (order.PurchaseOrderItems.Count == 0)
+        {
+            throw new BusinessRuleException(
+                $"Không thể duyệt phiếu nhập {order.Code}: phiếu không có dòng hàng nào.");
+        }
+
         // Everything below is one all-or-nothing unit: stock, movements and status change together
         await using var transaction = await _unitOfWork.BeginTransactionAsync();
         try
@@ -156,6 +163,42 @@ public class PurchaseOrderService : IPurchaseOrderService
         return order;
     }
 
+    public async Task<PurchaseOrder> CancelPurchaseOrderAsync(int id)
+    {
+        var order = await _purchaseOrderRepository.GetWithItemsAsync(id)
+            ?? throw new NotFoundException($"Không tìm thấy phiếu nhập có Id {id}.");
+
+        // Only an Approved order has added stock that can be taken back
+        if (order.Status != PurchaseOrderStatus.Approved)
+        {
+            throw new ConflictException(
+                $"Không thể hủy phiếu nhập {order.Code}: phiếu đang ở trạng thái \"{StatusLabel(order.Status)}\". Chỉ có thể hủy phiếu ở trạng thái \"{StatusLabel(PurchaseOrderStatus.Approved)}\".");
+        }
+
+        // Stock take-back, Adjustment movements and the status change succeed or fail together
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            await ReverseStockAsync(order, StockMovementType.Adjustment, $"Cancelled purchase order {order.Code}", "hủy");
+
+            order.Status = PurchaseOrderStatus.Cancelled;
+
+            await _purchaseOrderRepository.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+
+        _logger.LogInformation(
+            "Purchase order {PurchaseOrderId} ({Code}) cancelled: stock reversed for {ItemCount} line(s)",
+            order.Id, order.Code, order.PurchaseOrderItems.Count);
+
+        return order;
+    }
+
     public async Task<bool> DeletePurchaseOrderAsync(int id)
     {
         var existing = await _purchaseOrderRepository.GetWithItemsAsync(id);
@@ -170,31 +213,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             // Only an Approved order ever added stock, so only that case has anything to take back
             if (existing.Status == PurchaseOrderStatus.Approved)
             {
-                var now = DateTime.UtcNow;
-                foreach (var item in existing.PurchaseOrderItems)
-                {
-                    var product = item.Product
-                        ?? throw new InvalidOperationException($"Product {item.ProductId} of purchase order {id} is missing.");
-
-                    if (product.StockQuantity < item.Quantity)
-                    {
-                        throw new BusinessRuleException(
-                            $"Cannot delete purchase order {id}: product {product.Id} has only {product.StockQuantity} in stock but {item.Quantity} would be removed.");
-                    }
-
-                    product.StockQuantity -= item.Quantity;
-
-                    await _stockMovementRepository.AddAsync(new StockMovement
-                    {
-                        ProductId = item.ProductId,
-                        MovementType = StockMovementType.Export,
-                        Quantity = -item.Quantity,
-                        ReferenceType = PurchaseOrderReferenceType,
-                        ReferenceId = id,
-                        CreatedAt = now,
-                        Note = $"Deleted approved purchase order {existing.Code}"
-                    });
-                }
+                await ReverseStockAsync(existing, StockMovementType.Export, $"Deleted approved purchase order {existing.Code}", "xóa");
             }
 
             // Line items are removed by the cascade delete on the foreign key
@@ -209,6 +228,38 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         return true;
+    }
+
+    // Takes every line's quantity back out of stock and logs one negative movement per line.
+    // Callers must run this inside a transaction; nothing is saved here.
+    private async Task ReverseStockAsync(PurchaseOrder order, StockMovementType movementType, string note, string actionLabel)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var item in order.PurchaseOrderItems)
+        {
+            var product = item.Product
+                ?? throw new InvalidOperationException($"Product {item.ProductId} of purchase order {order.Id} is missing.");
+
+            // Stock cannot go negative: part of the received goods may already have been sold
+            if (product.StockQuantity < item.Quantity)
+            {
+                throw new BusinessRuleException(
+                    $"Không thể {actionLabel} phiếu nhập {order.Code}: sản phẩm {product.Id} chỉ còn {product.StockQuantity} trong kho nhưng cần trừ lại {item.Quantity}.");
+            }
+
+            product.StockQuantity -= item.Quantity;
+
+            await _stockMovementRepository.AddAsync(new StockMovement
+            {
+                ProductId = item.ProductId,
+                MovementType = movementType,
+                Quantity = -item.Quantity,
+                ReferenceType = PurchaseOrderReferenceType,
+                ReferenceId = order.Id,
+                CreatedAt = now,
+                Note = note
+            });
+        }
     }
 
     // PO-yyyyMMdd-NNN: NNN restarts at 001 each day. The unique index on Code is the final guard against duplicates.

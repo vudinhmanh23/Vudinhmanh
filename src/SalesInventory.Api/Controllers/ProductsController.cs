@@ -1,3 +1,8 @@
+using AutoMapper;
+using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+using SalesInventory.Application.Services;
+using SalesInventory.Application.Validators;
 using SalesInventory.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,7 +12,7 @@ using SalesInventory.Application.Interfaces;
 
 namespace SalesInventory.Api.Controllers;
 
-// Products: GET open to any authenticated user; writes (incl. stock adjustment) require "CanManageInventory"
+// Products: GET open to any authenticated user (except stock history); writes and stock history require "CanManageInventory"
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
@@ -19,9 +24,24 @@ public class ProductsController : ControllerBase
     private readonly IProductService _productService;
     private readonly ICategoryService _categoryService;
     private readonly ISupplierService _supplierService;
+    private readonly IStockMovementService _stockMovementService;
+    private readonly IMapper _mapper;
+    private readonly IValidator<CreateProductDto> _createValidator;
+    private readonly IValidator<UpdateProductDto> _updateValidator;
 
-    public ProductsController(IProductService productService, ICategoryService categoryService, ISupplierService supplierService)
+    public ProductsController(
+        IProductService productService,
+        ICategoryService categoryService,
+        ISupplierService supplierService,
+        IStockMovementService stockMovementService,
+        IMapper mapper,
+        IValidator<CreateProductDto> createValidator,
+        IValidator<UpdateProductDto> updateValidator)
     {
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
+        _stockMovementService = stockMovementService;
+        _mapper = mapper;
         _productService = productService;
         _categoryService = categoryService;
         _supplierService = supplierService;
@@ -54,6 +74,35 @@ public class ProductsController : ControllerBase
         return Ok(products.Select(p => ToDto(p, category?.Name, SupplierName(p, supplierNamesById))));
     }
 
+    /// <summary>Gets a single product by its SKU (case-insensitive).</summary>
+    [HttpGet("by-sku/{sku}")]
+    public async Task<ActionResult<ProductDto>> GetProductBySku(string sku)
+    {
+        var product = await _productService.GetProductBySkuAsync(sku);
+        if (product is null)
+        {
+            return NotFound();
+        }
+
+        var category = await _categoryService.GetCategoryAsync(product.CategoryId);
+        var supplierName = await GetSupplierNameAsync(product.SupplierId);
+        return Ok(ToDto(product, category?.Name, supplierName));
+    }
+
+    /// <summary>Gets discontinued products (IsActive = false).</summary>
+    [HttpGet("inactive")]
+    public async Task<ActionResult<IEnumerable<ProductDto>>> GetInactiveProducts()
+    {
+        var products = await _productService.GetInactiveProductsAsync();
+        var categories = await _categoryService.GetCategoriesAsync();
+        var categoryNamesById = categories.ToDictionary(c => c.Id, c => c.Name);
+
+        var suppliers = await _supplierService.GetSuppliersAsync();
+        var supplierNamesById = suppliers.ToDictionary(s => s.Id, s => s.Name);
+
+        return Ok(products.Select(p => ToDto(p, categoryNamesById.GetValueOrDefault(p.CategoryId), SupplierName(p, supplierNamesById))));
+    }
+
     /// <summary>Gets a single product by id.</summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<ProductDto>> GetProduct(int id)
@@ -69,21 +118,34 @@ public class ProductsController : ControllerBase
         return Ok(ToDto(product, category?.Name, supplierName));
     }
 
+    /// <summary>Gets the stock movement history of a product, newest first.</summary>
+    [HttpGet("{id}/movements")]
+    [Authorize(Policy = AuthPolicies.CanManageInventory)]
+    public async Task<ActionResult<IEnumerable<StockMovementDto>>> GetProductMovements(int id)
+    {
+        var movements = await _stockMovementService.GetProductMovementsAsync(id);
+        if (movements is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(_mapper.Map<IEnumerable<StockMovementDto>>(movements));
+    }
+
     /// <summary>Creates a new product.</summary>
     [HttpPost]
     [Authorize(Policy = AuthPolicies.CanManageInventory)]
     public async Task<ActionResult<ProductDto>> CreateProduct(CreateProductDto dto)
     {
-        var product = new Product
+        var validation = await _createValidator.ValidateAsync(dto);
+        if (!validation.IsValid)
         {
-            Name = dto.Name,
-            Sku = dto.Sku,
-            Price = dto.Price,
-            StockQuantity = dto.StockQuantity,
-            CategoryId = dto.CategoryId,
-            SupplierId = DefaultSupplierId,
-            CreatedAt = DateTime.UtcNow
-        };
+            return ValidationFailure(validation);
+        }
+
+        var product = _mapper.Map<Product>(dto);
+        product.SupplierId = DefaultSupplierId;
+        product.CreatedAt = DateTime.UtcNow;
 
         try
         {
@@ -91,10 +153,23 @@ public class ProductsController : ControllerBase
             var category = await _categoryService.GetCategoryAsync(created.CategoryId);
             return CreatedAtAction(nameof(GetProduct), new { id = created.Id }, ToDto(created, category?.Name, await GetSupplierNameAsync(created.SupplierId)));
         }
+        catch (DuplicateSkuException ex)
+        {
+            return Problem(title: "SKU đã tồn tại", detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
+        }
+        catch (DuplicateBarcodeException ex)
+        {
+            return Problem(title: "Barcode đã tồn tại", detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
+        }
+        catch (DbUpdateException)
+        {
+            // A unique index (SKU or barcode) fired, e.g. two concurrent requests passed the pre-check
+            return Problem(title: "SKU hoặc Barcode đã tồn tại", detail: "SKU hoặc Barcode đã được dùng cho sản phẩm khác.", statusCode: StatusCodes.Status409Conflict);
+        }
         catch (ArgumentException ex)
         {
             // Business validation failure from the service layer
-            return BadRequest(ex.Message);
+            return Problem(title: "Business rule violated", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
         }
     }
 
@@ -103,24 +178,38 @@ public class ProductsController : ControllerBase
     [Authorize(Policy = AuthPolicies.CanManageInventory)]
     public async Task<IActionResult> UpdateProduct(int id, UpdateProductDto dto)
     {
-        var product = new Product
+        var validationContext = new ValidationContext<UpdateProductDto>(dto);
+        validationContext.RootContextData[UpdateProductDtoValidator.ProductIdKey] = id;
+        var validation = await _updateValidator.ValidateAsync(validationContext);
+        if (!validation.IsValid)
         {
-            Name = dto.Name,
-            Sku = dto.Sku,
-            Price = dto.Price,
-            StockQuantity = dto.StockQuantity,
-            CategoryId = dto.CategoryId
-        };
+            return ValidationFailure(validation);
+        }
+
+        var product = _mapper.Map<Product>(dto);
 
         try
         {
             var updated = await _productService.UpdateProductAsync(id, product);
             return updated ? NoContent() : NotFound();
         }
+        catch (DuplicateSkuException ex)
+        {
+            return Problem(title: "SKU đã tồn tại", detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
+        }
+        catch (DuplicateBarcodeException ex)
+        {
+            return Problem(title: "Barcode đã tồn tại", detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
+        }
+        catch (DbUpdateException)
+        {
+            // A unique index (SKU or barcode) fired, e.g. two concurrent requests passed the pre-check
+            return Problem(title: "SKU hoặc Barcode đã tồn tại", detail: "SKU hoặc Barcode đã được dùng cho sản phẩm khác.", statusCode: StatusCodes.Status409Conflict);
+        }
         catch (ArgumentException ex)
         {
             // Business validation failure from the service layer
-            return BadRequest(ex.Message);
+            return Problem(title: "Business rule violated", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
         }
     }
 
@@ -148,19 +237,22 @@ public class ProductsController : ControllerBase
         return (await _supplierService.GetSupplierAsync(supplierId.Value))?.Name;
     }
 
-    private static ProductDto ToDto(Product product, string? categoryName, string? supplierName)
+    private ProductDto ToDto(Product product, string? categoryName, string? supplierName)
     {
-        return new ProductDto
+        var dto = _mapper.Map<ProductDto>(product);
+        dto.CategoryName = categoryName;
+        dto.SupplierName = supplierName;
+        return dto;
+    }
+
+    // Converts FluentValidation failures into a standard 400 ValidationProblemDetails response
+    private ActionResult ValidationFailure(FluentValidation.Results.ValidationResult result)
+    {
+        foreach (var error in result.Errors)
         {
-            Id = product.Id,
-            Name = product.Name,
-            Sku = product.Sku,
-            Price = product.Price,
-            StockQuantity = product.StockQuantity,
-            CategoryId = product.CategoryId,
-            CategoryName = categoryName,
-            SupplierId = product.SupplierId,
-            SupplierName = supplierName
-        };
+            ModelState.AddModelError(error.PropertyName, error.ErrorMessage);
+        }
+
+        return ValidationProblem(ModelState);
     }
 }

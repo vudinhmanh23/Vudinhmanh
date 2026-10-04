@@ -24,6 +24,30 @@ public class ProductService : IProductService
         return await _productRepository.GetByIdAsync(id);
     }
 
+    public async Task<Product?> GetProductBySkuAsync(string sku)
+    {
+        var products = await _productRepository.GetAllAsync();
+        return products.FirstOrDefault(p => string.Equals(p.Sku, sku, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public async Task<IEnumerable<Product>> GetInactiveProductsAsync()
+    {
+        var products = await _productRepository.GetAllAsync();
+        return products.Where(p => !p.IsActive);
+    }
+
+    public async Task<bool> IsSkuTakenAsync(string sku, int? excludeProductId)
+    {
+        var products = await _productRepository.GetAllAsync();
+        return products.Any(p => p.Id != excludeProductId && string.Equals(p.Sku, sku, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public async Task<bool> IsBarcodeTakenAsync(string barcode, int? excludeProductId)
+    {
+        var products = await _productRepository.GetAllAsync();
+        return products.Any(p => p.Id != excludeProductId && p.Barcode is not null && string.Equals(p.Barcode, barcode, StringComparison.OrdinalIgnoreCase));
+    }
+
     public async Task<IEnumerable<Product>> GetProductsByCategoryIdAsync(int categoryId)
     {
         var products = await _productRepository.GetAllAsync();
@@ -43,6 +67,8 @@ public class ProductService : IProductService
         {
             throw new ArgumentException($"Category with Id {product.CategoryId} does not exist.", nameof(product));
         }
+
+        await EnsureCodesAreUniqueAsync(product, null);
 
         await _productRepository.AddAsync(product);
         await _productRepository.SaveChangesAsync();
@@ -70,10 +96,18 @@ public class ProductService : IProductService
             throw new ArgumentException($"Category with Id {product.CategoryId} does not exist.", nameof(product));
         }
 
+        await EnsureCodesAreUniqueAsync(product, id);
+
         // SupplierId and CreatedAt are intentionally left untouched by updates
         existing.Name = product.Name;
         existing.Sku = product.Sku;
+        existing.Barcode = product.Barcode;
+        existing.Description = product.Description;
+        existing.Unit = product.Unit;
         existing.Price = product.Price;
+        existing.PurchasePrice = product.PurchasePrice;
+        existing.SalePrice = product.SalePrice;
+        existing.IsActive = product.IsActive;
         existing.StockQuantity = product.StockQuantity;
         existing.CategoryId = product.CategoryId;
 
@@ -95,5 +129,19 @@ public class ProductService : IProductService
         await _productRepository.SaveChangesAsync();
 
         return true;
+    }
+
+    // Friendly pre-check; the unique indexes on Products.Sku / Products.Barcode remain the final guard against races
+    private async Task EnsureCodesAreUniqueAsync(Product product, int? excludeId)
+    {
+        if (await IsSkuTakenAsync(product.Sku, excludeId))
+        {
+            throw new DuplicateSkuException(product.Sku);
+        }
+
+        if (product.Barcode is not null && await IsBarcodeTakenAsync(product.Barcode, excludeId))
+        {
+            throw new DuplicateBarcodeException(product.Barcode);
+        }
     }
 }

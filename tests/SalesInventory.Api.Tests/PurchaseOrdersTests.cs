@@ -328,6 +328,158 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Approve_OrderWithoutLines_Returns400ProblemDetails()
+    {
+        var client = await AdminClientAsync();
+        int emptyOrderId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            // The API refuses to create an empty order, so insert one directly to simulate bad/legacy data
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var order = new PurchaseOrder
+            {
+                Code = $"PO-EMPTY-{Guid.NewGuid():N}"[..20],
+                SupplierId = 1,
+                OrderDate = DateTime.UtcNow,
+                Status = PurchaseOrderStatus.Draft
+            };
+            db.PurchaseOrders.Add(order);
+            await db.SaveChangesAsync();
+            emptyOrderId = order.Id;
+        }
+
+        var response = await client.PostAsync($"/api/purchase-orders/{emptyOrderId}/approve", null);
+
+        await AssertProblemAsync(response, HttpStatusCode.BadRequest, "không có dòng hàng");
+        using var check = _factory.Services.CreateScope();
+        var order2 = await check.ServiceProvider.GetRequiredService<AppDbContext>().PurchaseOrders.AsNoTracking().SingleAsync(o => o.Id == emptyOrderId);
+        Assert.Equal(PurchaseOrderStatus.Draft, order2.Status);
+    }
+
+    [Fact]
+    public async Task Cancel_ApprovedOrder_RestoresStockAndLogsNegativeAdjustment()
+    {
+        var client = await AdminClientAsync();
+        var p1 = await AddProductAsync(stock: 10);
+        var p2 = await AddProductAsync(stock: 5);
+        var created = await CreateAsync(client, Dto((p1, 3, 100m), (p2, 2, 50m)));
+        await client.PostAsync($"/api/purchase-orders/{created.Id}/approve", null);
+        Assert.Equal(13, await GetStockAsync(p1));
+
+        var response = await client.PostAsync($"/api/purchase-orders/{created.Id}/cancel", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Cancelled", (await response.Content.ReadFromJsonAsync<PurchaseOrderDto>())!.Status);
+        // Stock is back to the values before the approval
+        Assert.Equal(10, await GetStockAsync(p1));
+        Assert.Equal(5, await GetStockAsync(p2));
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var movements = await db.StockMovements.Where(m => m.ReferenceId == created.Id).ToListAsync();
+        Assert.Equal(4, movements.Count); // per product: one Import (+) and one Adjustment (-)
+        foreach (var (productId, quantity) in new[] { (p1, 3), (p2, 2) })
+        {
+            var import = movements.Single(m => m.ProductId == productId && m.MovementType == StockMovementType.Import);
+            var adjustment = movements.Single(m => m.ProductId == productId && m.MovementType == StockMovementType.Adjustment);
+            Assert.Equal(quantity, import.Quantity);
+            Assert.Equal(-quantity, adjustment.Quantity);
+        }
+    }
+
+    [Fact]
+    public async Task Cancel_DraftOrAlreadyCancelled_Returns409AndStockUnchanged()
+    {
+        var client = await AdminClientAsync();
+        var p = await AddProductAsync(stock: 10);
+        var created = await CreateAsync(client, Dto((p, 4, 10m)));
+
+        await AssertProblemAsync(await client.PostAsync($"/api/purchase-orders/{created.Id}/cancel", null),
+            HttpStatusCode.Conflict, "Nháp");
+
+        await client.PostAsync($"/api/purchase-orders/{created.Id}/approve", null);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/purchase-orders/{created.Id}/cancel", null)).StatusCode);
+
+        await AssertProblemAsync(await client.PostAsync($"/api/purchase-orders/{created.Id}/cancel", null),
+            HttpStatusCode.Conflict, "Đã hủy");
+        Assert.Equal(10, await GetStockAsync(p));
+    }
+
+    [Fact]
+    public async Task Cancel_WhenGoodsAlreadySold_Returns400AndChangesNothing()
+    {
+        var client = await AdminClientAsync();
+        var p = await AddProductAsync(stock: 0);
+        var created = await CreateAsync(client, Dto((p, 10, 10m)));
+        await client.PostAsync($"/api/purchase-orders/{created.Id}/approve", null);
+
+        // Simulate selling 7 of the 10 received units, leaving too little to take back
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.Products.SingleAsync(x => x.Id == p)).StockQuantity = 3;
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsync($"/api/purchase-orders/{created.Id}/cancel", null);
+
+        await AssertProblemAsync(response, HttpStatusCode.BadRequest, "chỉ còn 3");
+        Assert.Equal(3, await GetStockAsync(p));
+        using var check = _factory.Services.CreateScope();
+        var db2 = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(PurchaseOrderStatus.Approved, (await db2.PurchaseOrders.AsNoTracking().SingleAsync(o => o.Id == created.Id)).Status);
+        Assert.DoesNotContain(db2.StockMovements, m => m.ReferenceId == created.Id && m.MovementType == StockMovementType.Adjustment);
+    }
+
+    [Fact]
+    public async Task Cancel_UnknownOrder_Returns404()
+    {
+        var client = await AdminClientAsync();
+
+        await AssertProblemAsync(await client.PostAsync("/api/purchase-orders/99999/cancel", null),
+            HttpStatusCode.NotFound, "99999");
+    }
+
+    [Fact]
+    public async Task ProductMovements_ReturnsHistoryNewestFirst()
+    {
+        var client = await AdminClientAsync();
+        var p = await AddProductAsync(stock: 10);
+        var created = await CreateAsync(client, Dto((p, 5, 10m)));
+        await client.PostAsync($"/api/purchase-orders/{created.Id}/approve", null);
+        await client.PostAsync($"/api/purchase-orders/{created.Id}/cancel", null);
+
+        var response = await client.GetAsync($"/api/products/{p}/movements");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var movements = (await response.Content.ReadFromJsonAsync<List<StockMovementDto>>())!;
+        Assert.Equal(2, movements.Count);
+        // Newest first: the cancellation's Adjustment, then the approval's Import
+        Assert.Equal("Adjustment", movements[0].MovementType);
+        Assert.Equal(-5, movements[0].Quantity);
+        Assert.Equal("Import", movements[1].MovementType);
+        Assert.Equal(5, movements[1].Quantity);
+        Assert.All(movements, m =>
+        {
+            Assert.Equal(p, m.ProductId);
+            Assert.Equal("PurchaseOrder", m.ReferenceType);
+            Assert.Equal(created.Id, m.ReferenceId);
+        });
+    }
+
+    [Fact]
+    public async Task ProductMovements_UnknownProduct_Returns404_AndWrongRoleReturns403()
+    {
+        var admin = await AdminClientAsync();
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/products/99999/movements")).StatusCode);
+
+        var sales = _factory.CreateClient();
+        var token = await AuthTestHelper.RegisterAndLoginAsync(sales, "BanHang");
+        sales.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        Assert.Equal(HttpStatusCode.Forbidden, (await sales.GetAsync("/api/products/1/movements")).StatusCode);
+    }
+
+    [Fact]
     public async Task Delete_ApprovedOrder_ReversesStockAndLogsExportMovement()
     {
         var client = await AdminClientAsync();

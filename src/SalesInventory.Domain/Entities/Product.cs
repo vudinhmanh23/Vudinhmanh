@@ -16,7 +16,25 @@ public class Product
     [MaxLength(50)]
     public string Sku { get; set; } = string.Empty;
 
+    [MaxLength(1000)]
+    public string? Description { get; set; }
+
+    // Optional barcode; when present it must be unique (filtered unique index)
+    [MaxLength(50)]
+    public string? Barcode { get; set; }
+
+    // Unit of measure, e.g. "cái", "hộp", "kg"
+    [Required]
+    [MaxLength(50)]
+    public string Unit { get; set; } = "cái";
+
     public decimal Price { get; set; }
+
+    public decimal PurchasePrice { get; set; }
+
+    public decimal SalePrice { get; set; }
+
+    public bool IsActive { get; set; } = true;
 
     public int StockQuantity { get; set; }
 

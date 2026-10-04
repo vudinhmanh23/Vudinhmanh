@@ -1,24 +1,25 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace SalesInventory.Application.Dtos;
 
-// Write model for creating a product
+// Write model for creating a product (validated by CreateProductDtoValidator)
 public class CreateProductDto
 {
-    [Required]
-    [MaxLength(200)]
     public string Name { get; set; } = string.Empty;
 
-    [Required]
-    [MaxLength(50)]
     public string Sku { get; set; } = string.Empty;
 
-    [Range(0, double.MaxValue)]
-    public decimal Price { get; set; }
+    public string? Description { get; set; }
 
-    [Range(0, int.MaxValue)]
-    public int StockQuantity { get; set; }
+    public string? Barcode { get; set; }
 
-    [Required]
+    public string Unit { get; set; } = "cái";
+
+    public decimal PurchasePrice { get; set; }
+
+    public decimal SalePrice { get; set; }
+
+    public int Quantity { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
     public int CategoryId { get; set; }
 }

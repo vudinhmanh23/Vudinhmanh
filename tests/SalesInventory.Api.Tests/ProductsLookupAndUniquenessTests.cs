@@ -27,7 +27,7 @@ public class ProductsLookupAndUniquenessTests : IClassFixture<CustomWebApplicati
     private static CreateProductDto NewDto(string? barcode = null, bool isActive = true) => new()
     {
         Name = "Lookup Test Product",
-        Sku = $"LK-{Guid.NewGuid():N}",
+        Sku = $"LK-{Guid.NewGuid():N}"[..20].ToUpperInvariant(),
         Barcode = barcode,
         Unit = "cái",
         PurchasePrice = 1000,

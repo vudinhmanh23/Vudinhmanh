@@ -248,7 +248,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Create_UnknownSupplier_Returns400AndChangesNothing()
+    public async Task Create_UnknownSupplier_Returns404AndChangesNothing()
     {
         var client = await AdminClientAsync();
         var p = await AddProductAsync(stock: 10);
@@ -257,7 +257,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
 
         var response = await client.PostAsJsonAsync("/api/purchase-orders", dto);
 
-        await AssertProblemAsync(response, HttpStatusCode.NotFound, "Supplier with Id 99999");
+        await AssertProblemAsync(response, HttpStatusCode.NotFound, "Không tìm thấy nhà cung cấp");
         Assert.Equal(10, await GetStockAsync(p));
     }
 
@@ -328,7 +328,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Approve_OrderWithoutLines_Returns400ProblemDetails()
+    public async Task Approve_OrderWithoutLines_Returns409ProblemDetails()
     {
         var client = await AdminClientAsync();
         int emptyOrderId;
@@ -350,7 +350,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
 
         var response = await client.PostAsync($"/api/purchase-orders/{emptyOrderId}/approve", null);
 
-        await AssertProblemAsync(response, HttpStatusCode.BadRequest, "không có dòng hàng");
+        await AssertProblemAsync(response, HttpStatusCode.Conflict, "không có dòng hàng");
         using var check = _factory.Services.CreateScope();
         var order2 = await check.ServiceProvider.GetRequiredService<AppDbContext>().PurchaseOrders.AsNoTracking().SingleAsync(o => o.Id == emptyOrderId);
         Assert.Equal(PurchaseOrderStatus.Draft, order2.Status);
@@ -406,7 +406,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Cancel_WhenGoodsAlreadySold_Returns400AndChangesNothing()
+    public async Task Cancel_WhenGoodsAlreadySold_Returns409AndChangesNothing()
     {
         var client = await AdminClientAsync();
         var p = await AddProductAsync(stock: 0);
@@ -423,7 +423,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
 
         var response = await client.PostAsync($"/api/purchase-orders/{created.Id}/cancel", null);
 
-        await AssertProblemAsync(response, HttpStatusCode.BadRequest, "chỉ còn 3");
+        await AssertProblemAsync(response, HttpStatusCode.Conflict, "chỉ còn 3");
         Assert.Equal(3, await GetStockAsync(p));
         using var check = _factory.Services.CreateScope();
         var db2 = check.ServiceProvider.GetRequiredService<AppDbContext>();

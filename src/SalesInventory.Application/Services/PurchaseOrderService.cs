@@ -51,6 +51,11 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new BusinessRuleException("A purchase order must contain at least one item.");
         }
 
+        if (items.Sum(i => i.Quantity) <= 0)
+        {
+            throw new BusinessRuleException("Total quantity of a purchase order must be greater than 0.");
+        }
+
         var badQuantity = items.FirstOrDefault(i => i.Quantity <= 0);
         if (badQuantity is not null)
         {
@@ -61,7 +66,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         // Business rule: SupplierId must reference an existing supplier
         if (await _supplierRepository.GetByIdAsync(purchaseOrder.SupplierId) is null)
         {
-            throw new NotFoundException($"Supplier with Id {purchaseOrder.SupplierId} does not exist.");
+            throw new NotFoundException($"Không tìm thấy nhà cung cấp (Id {purchaseOrder.SupplierId}).");
         }
 
         // Every product must exist; report all missing ids at once

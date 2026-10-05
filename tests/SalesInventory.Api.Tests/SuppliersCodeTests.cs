@@ -88,6 +88,37 @@ public class SuppliersCodeTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Contains("Email", problem.Errors.Keys);
     }
 
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("12345")]
+    [InlineData("0123456789012")]
+    public async Task Update_InvalidPhone_Returns400(string phone)
+    {
+        var client = await AdminClientAsync();
+        var code = $"PH-{Guid.NewGuid():N}"[..20];
+        var created = await client.PostAsJsonAsync("/api/suppliers", new { code, name = "Phone test" });
+        var supplier = await created.Content.ReadFromJsonAsync<SupplierDto>();
+
+        var response = await client.PutAsJsonAsync($"/api/suppliers/{supplier!.Id}", new { code, name = "Phone test", phone, isActive = true });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>();
+        Assert.Contains("Phone", problem!.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task Update_ValidPhone_Returns204()
+    {
+        var client = await AdminClientAsync();
+        var code = $"PH-{Guid.NewGuid():N}"[..20];
+        var created = await client.PostAsJsonAsync("/api/suppliers", new { code, name = "Phone ok" });
+        var supplier = await created.Content.ReadFromJsonAsync<SupplierDto>();
+
+        var response = await client.PutAsJsonAsync($"/api/suppliers/{supplier!.Id}", new { code, name = "Phone ok", phone = "0901234567", isActive = true });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
     private async Task<HttpClient> AdminClientAsync()
     {
         var client = _factory.CreateClient();

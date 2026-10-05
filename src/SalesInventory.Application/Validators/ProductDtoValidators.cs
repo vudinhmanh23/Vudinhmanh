@@ -19,7 +19,11 @@ internal static class ProductRules
         Func<T, int> quantity)
     {
         validator.RuleFor(x => name(x)).NotEmpty().MaximumLength(200).OverridePropertyName("Name");
-        validator.RuleFor(x => sku(x)).NotEmpty().MaximumLength(50).OverridePropertyName("Sku");
+        validator.RuleFor(x => sku(x))
+            .NotEmpty()
+            .Matches("^[A-Z0-9-]{3,32}$")
+            .WithMessage("SKU chỉ gồm chữ in hoa, số hoặc dấu '-', dài 3-32 ký tự")
+            .OverridePropertyName("Sku");
         validator.RuleFor(x => description(x)).MaximumLength(1000).OverridePropertyName("Description");
         validator.RuleFor(x => barcode(x))
             .MaximumLength(50)
@@ -28,7 +32,7 @@ internal static class ProductRules
             .OverridePropertyName("Barcode");
         validator.RuleFor(x => unit(x)).NotEmpty().MaximumLength(50).OverridePropertyName("Unit");
         validator.RuleFor(x => purchasePrice(x)).GreaterThanOrEqualTo(0).OverridePropertyName("PurchasePrice");
-        validator.RuleFor(x => salePrice(x)).GreaterThanOrEqualTo(0).OverridePropertyName("SalePrice");
+        validator.RuleFor(x => salePrice(x)).GreaterThan(0).OverridePropertyName("SalePrice");
         validator.RuleFor(x => salePrice(x))
             .GreaterThanOrEqualTo(x => purchasePrice(x))
             .WithMessage("Giá bán không được nhỏ hơn giá nhập")
@@ -39,9 +43,15 @@ internal static class ProductRules
 
 public class CreateProductDtoValidator : AbstractValidator<CreateProductDto>
 {
-    public CreateProductDtoValidator()
+    public CreateProductDtoValidator(IProductService productService)
     {
         ProductRules.Apply(this, x => x.Name, x => x.Sku, x => x.Description, x => x.Barcode, x => x.Unit, x => x.PurchasePrice, x => x.SalePrice, x => x.Quantity);
+
+        // Block duplicate SKUs at the validation layer (the lookup goes through the service, not DbContext, to keep layers clean)
+        RuleFor(x => x.Sku)
+            .MustAsync(async (sku, _) => !await productService.IsSkuTakenAsync(sku, null))
+            .When(x => !string.IsNullOrWhiteSpace(x.Sku))
+            .WithMessage(x => $"SKU '{x.Sku}' đã tồn tại.");
     }
 }
 

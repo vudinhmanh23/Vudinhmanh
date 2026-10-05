@@ -66,23 +66,11 @@ public class PurchaseOrdersController : ControllerBase
 
         var order = _mapper.Map<PurchaseOrder>(dto);
 
-        try
-        {
-            var created = await _purchaseOrderService.CreatePurchaseOrderAsync(order);
+        var created = await _purchaseOrderService.CreatePurchaseOrderAsync(order);
 
-            // Reload so the response includes product names for the line items
-            var loaded = await _purchaseOrderService.GetPurchaseOrderAsync(created.Id);
-            return CreatedAtAction(nameof(GetPurchaseOrder), new { id = created.Id }, _mapper.Map<PurchaseOrderDto>(loaded));
-        }
-        catch (NotFoundException ex)
-        {
-            // Unknown SupplierId / ProductId
-            return Problem(title: "Referenced record not found", detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
-        }
-        catch (BusinessRuleException ex)
-        {
-            return Problem(title: "Business rule violated", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
-        }
+        // Reload so the response includes product names for the line items
+        var loaded = await _purchaseOrderService.GetPurchaseOrderAsync(created.Id);
+        return CreatedAtAction(nameof(GetPurchaseOrder), new { id = created.Id }, _mapper.Map<PurchaseOrderDto>(loaded));
     }
 
     /// <summary>
@@ -98,24 +86,8 @@ public class PurchaseOrdersController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<PurchaseOrderDto>> ApprovePurchaseOrder(int id)
     {
-        try
-        {
-            var approved = await _purchaseOrderService.ApprovePurchaseOrderAsync(id);
-            return Ok(_mapper.Map<PurchaseOrderDto>(approved));
-        }
-        catch (NotFoundException ex)
-        {
-            return Problem(title: "Không tìm thấy phiếu nhập", detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
-        }
-        catch (BusinessRuleException ex)
-        {
-            // e.g. the order has no lines to approve
-            return Problem(title: "Không thể duyệt phiếu nhập", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
-        }
-        catch (ConflictException ex)
-        {
-            return Problem(title: "Trạng thái phiếu không hợp lệ", detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
-        }
+        var approved = await _purchaseOrderService.ApprovePurchaseOrderAsync(id);
+        return Ok(_mapper.Map<PurchaseOrderDto>(approved));
     }
 
     /// <summary>
@@ -123,49 +95,24 @@ public class PurchaseOrdersController : ControllerBase
     /// Adjustment movement per line, all in one transaction. Returns 409 if the order is not Approved.
     /// </summary>
     /// <response code="200">The cancelled order.</response>
-    /// <response code="400">Stock is too low to take the goods back (part of it was already sold).</response>
     /// <response code="404">No purchase order with this id.</response>
-    /// <response code="409">The order is not in the Approved state.</response>
+    /// <response code="409">The order is not Approved, or stock is too low to take the goods back.</response>
     [HttpPost("{id}/cancel")]
     [ProducesResponseType(typeof(PurchaseOrderDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<PurchaseOrderDto>> CancelPurchaseOrder(int id)
     {
-        try
-        {
-            var cancelled = await _purchaseOrderService.CancelPurchaseOrderAsync(id);
-            return Ok(_mapper.Map<PurchaseOrderDto>(cancelled));
-        }
-        catch (NotFoundException ex)
-        {
-            return Problem(title: "Không tìm thấy phiếu nhập", detail: ex.Message, statusCode: StatusCodes.Status404NotFound);
-        }
-        catch (BusinessRuleException ex)
-        {
-            return Problem(title: "Không thể hủy phiếu nhập", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
-        }
-        catch (ConflictException ex)
-        {
-            return Problem(title: "Trạng thái phiếu không hợp lệ", detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
-        }
+        var cancelled = await _purchaseOrderService.CancelPurchaseOrderAsync(id);
+        return Ok(_mapper.Map<PurchaseOrderDto>(cancelled));
     }
 
     /// <summary>Deletes a purchase order and its line items; an Approved order also has its stock taken back.</summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeletePurchaseOrder(int id)
     {
-        try
-        {
-            var deleted = await _purchaseOrderService.DeletePurchaseOrderAsync(id);
-            return deleted ? NoContent() : NotFound();
-        }
-        catch (BusinessRuleException ex)
-        {
-            // e.g. part of the received stock was already sold, so it cannot be taken back
-            return Problem(title: "Business rule violated", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
-        }
+        var deleted = await _purchaseOrderService.DeletePurchaseOrderAsync(id);
+        return deleted ? NoContent() : NotFound();
     }
 
     // Converts FluentValidation failures into a standard 400 ValidationProblemDetails response

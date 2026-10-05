@@ -18,7 +18,7 @@ public class ProductsAuthorizationTests : IClassFixture<CustomWebApplicationFact
     private static CreateProductDto NewProductDto() => new()
     {
         Name = "Integration Test Product",
-        Sku = $"SKU-TEST-{Guid.NewGuid():N}",
+        Sku = $"SKU-{Guid.NewGuid():N}"[..20].ToUpperInvariant(),
         Unit = "cái",
         PurchasePrice = 8000,
         SalePrice = 10000,
@@ -81,7 +81,7 @@ public class ProductsAuthorizationTests : IClassFixture<CustomWebApplicationFact
     }
 
     [Fact]
-    public async Task CreateProduct_DuplicateSku_Returns409OnSecondRequest()
+    public async Task CreateProduct_DuplicateSku_Returns400OnSecondRequest()
     {
         var client = _factory.CreateClient();
         var token = await AuthTestHelper.RegisterAndLoginAsync(client, "Kho");
@@ -92,6 +92,42 @@ public class ProductsAuthorizationTests : IClassFixture<CustomWebApplicationFact
         var second = await client.PostAsJsonAsync("/api/products", dto);
 
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        // Rejected by the async SKU validator before reaching the service
+        Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
+        var problem = await second.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>();
+        Assert.Contains("Sku", problem!.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task CreateProduct_MissingNameAndBadSku_Returns400WithPerFieldErrors()
+    {
+        var client = _factory.CreateClient();
+        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "Kho");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var dto = NewProductDto();
+        dto.Name = "";
+        dto.Sku = "kb";
+
+        var response = await client.PostAsJsonAsync("/api/products", dto);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>();
+        Assert.Contains("Name", problem!.Errors.Keys);
+        Assert.Contains("Sku", problem.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task CreateProduct_Response_DoesNotExposePurchasePrice()
+    {
+        var client = _factory.CreateClient();
+        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "Kho");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync("/api/products", NewProductDto());
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("purchaseprice", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("costprice", body, StringComparison.OrdinalIgnoreCase);
     }
 }

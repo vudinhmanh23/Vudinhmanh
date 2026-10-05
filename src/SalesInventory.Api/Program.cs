@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SalesInventory.Infrastructure.Identity;
 using SalesInventory.Application;
+using SalesInventory.Api.Middleware;
 using SalesInventory.Api.Swagger;
 using SalesInventory.Infrastructure;
 
@@ -86,6 +87,9 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+// First in the pipeline so it catches exceptions thrown by everything after it
+app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

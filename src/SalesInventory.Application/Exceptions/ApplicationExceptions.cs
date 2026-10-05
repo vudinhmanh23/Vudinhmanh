@@ -16,6 +16,14 @@ public class ConflictException : Exception
     }
 }
 
+// The request is well-formed but semantically unacceptable (e.g. a duplicate SKU in an import); the API maps this to 422 ProblemDetails
+public class UnprocessableEntityException : Exception
+{
+    public UnprocessableEntityException(string message) : base(message)
+    {
+    }
+}
+
 // A business rule was violated; the API maps this to 400 ProblemDetails
 public class BusinessRuleException : Exception
 {

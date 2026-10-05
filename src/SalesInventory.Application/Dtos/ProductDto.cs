@@ -9,7 +9,6 @@ public class ProductDto
     public string? Description { get; set; }
     public string? Barcode { get; set; }
     public string Unit { get; set; } = string.Empty;
-    public decimal PurchasePrice { get; set; }
     public decimal SalePrice { get; set; }
     public int Quantity { get; set; }
     public bool IsActive { get; set; }

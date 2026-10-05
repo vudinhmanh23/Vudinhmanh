@@ -6,7 +6,7 @@ public class StockMovementDto
     public int Id { get; set; }
     public int ProductId { get; set; }
 
-    // Import, Export or Adjustment
+    // Purchase, Sale or Adjustment
     public string MovementType { get; set; } = string.Empty;
 
     // Signed: positive for stock in, negative for stock out

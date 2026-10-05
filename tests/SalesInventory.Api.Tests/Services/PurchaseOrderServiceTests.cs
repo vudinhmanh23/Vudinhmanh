@@ -78,7 +78,7 @@ public sealed class PurchaseOrderServiceTests : IDisposable
         Assert.Equal(105, await StockOfAsync(2));
         var movements = await _db.StockMovements.AsNoTracking().Where(m => m.ReferenceId == order.Id).ToListAsync();
         Assert.Equal(2, movements.Count);
-        Assert.All(movements, m => Assert.Equal(StockMovementType.Import, m.MovementType));
+        Assert.All(movements, m => Assert.Equal(StockMovementType.Purchase, m.MovementType));
         Assert.Equal(PurchaseOrderStatus.Approved, (await _db.PurchaseOrders.AsNoTracking().SingleAsync(o => o.Id == order.Id)).Status);
     }
 }

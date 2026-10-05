@@ -1,0 +1,33 @@
+using Microsoft.EntityFrameworkCore;
+using SalesInventory.Application.Interfaces;
+using SalesInventory.Domain.Entities;
+using SalesInventory.Infrastructure.Persistence;
+
+namespace SalesInventory.Infrastructure.Repositories;
+
+public class SalesOrderRepository : Repository<SalesOrder>, ISalesOrderRepository
+{
+    public SalesOrderRepository(AppDbContext context) : base(context)
+    {
+    }
+
+    public async Task<IReadOnlyList<SalesOrder>> GetAllWithItemsAsync()
+    {
+        return await _context.SalesOrders
+            .AsNoTracking()
+            .Include(o => o.Items)
+                .ThenInclude(i => i.Product)
+            .OrderByDescending(o => o.OrderDate)
+            .ThenByDescending(o => o.Id)
+            .ToListAsync();
+    }
+
+    public async Task<SalesOrder?> GetWithItemsAsync(int id)
+    {
+        return await _context.SalesOrders
+            .AsNoTracking()
+            .Include(o => o.Items)
+                .ThenInclude(i => i.Product)
+            .FirstOrDefaultAsync(o => o.Id == id);
+    }
+}

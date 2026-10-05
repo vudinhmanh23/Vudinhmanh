@@ -2,12 +2,16 @@ using SalesInventory.Domain.Entities;
 
 namespace SalesInventory.Application.Interfaces;
 
-// Business-facing operations for Order (sales), on top of the repository layer
+// The persisted order plus any non-blocking low-stock warnings
+public record CreateSalesOrderResult(SalesOrder Order, IReadOnlyList<string> Warnings);
+
+// Business-facing operations for SalesOrder, on top of the repository layer
 public interface ISalesOrderService
 {
-    Task<IEnumerable<Order>> GetOrdersAsync();
-    Task<Order?> GetOrderAsync(int id);
-    Task<IEnumerable<OrderItem>> GetOrderItemsAsync();
-    Task<Order> CreateOrderAsync(Order order, IEnumerable<OrderItem> items);
+    Task<IReadOnlyList<SalesOrder>> GetOrdersAsync();
+    Task<SalesOrder?> GetOrderAsync(int id);
+
+    // Validates, deducts stock, logs one Sale movement per line and saves everything in one transaction
+    Task<CreateSalesOrderResult> CreateOrderAsync(SalesOrder order);
     Task<bool> DeleteOrderAsync(int id);
 }

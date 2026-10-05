@@ -26,6 +26,6 @@ public class CustomerRepository : Repository<Customer>, ICustomerRepository
 
     public Task<bool> HasOrdersAsync(int customerId)
     {
-        return _context.Orders.AnyAsync(o => o.CustomerId == customerId);
+        return _context.SalesOrders.AnyAsync(o => o.CustomerId == customerId);
     }
 }

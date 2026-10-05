@@ -24,5 +24,5 @@ public class Customer
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // A customer can place many orders
-    public ICollection<Order> Orders { get; set; } = new List<Order>();
+    public ICollection<SalesOrder> SalesOrders { get; set; } = new List<SalesOrder>();
 }

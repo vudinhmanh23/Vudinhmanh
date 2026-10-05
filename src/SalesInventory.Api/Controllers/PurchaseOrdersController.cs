@@ -74,7 +74,7 @@ public class PurchaseOrdersController : ControllerBase
     }
 
     /// <summary>
-    /// Approves a Draft purchase order: adds every line's quantity to the product's stock and logs one Import
+    /// Approves a Draft purchase order: adds every line's quantity to the product's stock and logs one Purchase
     /// stock movement per line, all in one transaction. Returns 409 if the order is not a Draft.
     /// </summary>
     /// <response code="200">The approved order.</response>

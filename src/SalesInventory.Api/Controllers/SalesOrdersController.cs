@@ -1,9 +1,10 @@
-using SalesInventory.Infrastructure.Identity;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SalesInventory.Application.Dtos;
-using SalesInventory.Domain.Entities;
 using SalesInventory.Application.Interfaces;
+using SalesInventory.Domain.Entities;
+using SalesInventory.Infrastructure.Identity;
 
 namespace SalesInventory.Api.Controllers;
 
@@ -14,12 +15,12 @@ namespace SalesInventory.Api.Controllers;
 public class SalesOrdersController : ControllerBase
 {
     private readonly ISalesOrderService _salesOrderService;
-    private readonly IProductService _productService;
+    private readonly IMapper _mapper;
 
-    public SalesOrdersController(ISalesOrderService salesOrderService, IProductService productService)
+    public SalesOrdersController(ISalesOrderService salesOrderService, IMapper mapper)
     {
         _salesOrderService = salesOrderService;
-        _productService = productService;
+        _mapper = mapper;
     }
 
     /// <summary>Gets all sales orders.</summary>
@@ -27,11 +28,7 @@ public class SalesOrdersController : ControllerBase
     public async Task<ActionResult<IEnumerable<OrderDto>>> GetOrders()
     {
         var orders = await _salesOrderService.GetOrdersAsync();
-        var items = await _salesOrderService.GetOrderItemsAsync();
-        var itemsByOrderId = items.ToLookup(i => i.OrderId);
-        var productNamesById = await GetProductNamesByIdAsync();
-
-        return Ok(orders.Select(o => ToDto(o, itemsByOrderId[o.Id], productNamesById)));
+        return Ok(_mapper.Map<List<OrderDto>>(orders));
     }
 
     /// <summary>Gets a single sales order by id.</summary>
@@ -39,81 +36,32 @@ public class SalesOrdersController : ControllerBase
     public async Task<ActionResult<OrderDto>> GetOrder(int id)
     {
         var order = await _salesOrderService.GetOrderAsync(id);
-        if (order is null)
-        {
-            return NotFound();
-        }
-
-        var items = await _salesOrderService.GetOrderItemsAsync();
-        var productNamesById = await GetProductNamesByIdAsync();
-
-        return Ok(ToDto(order, items.Where(i => i.OrderId == id), productNamesById));
+        return order is null ? NotFound() : Ok(_mapper.Map<OrderDto>(order));
     }
 
-    /// <summary>Creates a new sales order with its line items.</summary>
+    /// <summary>
+    /// Creates a sales order: deducts stock, logs one Sale movement per line, all in one transaction.
+    /// Returns 409 when stock is insufficient; low-stock notices come back in <c>warnings</c>.
+    /// </summary>
     [HttpPost]
     public async Task<ActionResult<OrderDto>> CreateOrder(CreateOrderDto dto)
     {
-        var order = new Order
-        {
-            OrderDate = dto.OrderDate,
-            CustomerId = dto.CustomerId
-        };
+        var result = await _salesOrderService.CreateOrderAsync(_mapper.Map<SalesOrder>(dto));
 
-        var items = dto.Items.Select(i => new OrderItem
-        {
-            ProductId = i.ProductId,
-            Quantity = i.Quantity,
-            UnitPrice = i.UnitPrice
-        });
+        // Re-read so the response carries product names
+        var created = await _salesOrderService.GetOrderAsync(result.Order.Id);
+        var response = _mapper.Map<OrderDto>(created);
+        response.Warnings = result.Warnings.ToList();
 
-        try
-        {
-            var created = await _salesOrderService.CreateOrderAsync(order, items);
-            var createdItems = await _salesOrderService.GetOrderItemsAsync();
-            var productNamesById = await GetProductNamesByIdAsync();
-
-            return CreatedAtAction(
-                nameof(GetOrder),
-                new { id = created.Id },
-                ToDto(created, createdItems.Where(i => i.OrderId == created.Id), productNamesById));
-        }
-        catch (ArgumentException ex)
-        {
-            // Business validation failure from the service layer
-            return BadRequest(ex.Message);
-        }
+        return CreatedAtAction(nameof(GetOrder), new { id = response.Id }, response);
     }
 
-    /// <summary>Deletes a sales order and its line items.</summary>
+    /// <summary>Deletes a sales order and its line items (stock is not restored).</summary>
     [HttpDelete("{id}")]
     [Authorize(Roles = AppRoles.Admin)]
     public async Task<IActionResult> DeleteOrder(int id)
     {
         var deleted = await _salesOrderService.DeleteOrderAsync(id);
         return deleted ? NoContent() : NotFound();
-    }
-
-    private async Task<Dictionary<int, string>> GetProductNamesByIdAsync()
-    {
-        var products = await _productService.GetProductsAsync();
-        return products.ToDictionary(p => p.Id, p => p.Name);
-    }
-
-    private static OrderDto ToDto(Order order, IEnumerable<OrderItem> items, Dictionary<int, string> productNamesById)
-    {
-        return new OrderDto
-        {
-            Id = order.Id,
-            OrderDate = order.OrderDate,
-            CustomerId = order.CustomerId,
-            Items = items.Select(i => new OrderItemDto
-            {
-                ProductId = i.ProductId,
-                ProductName = productNamesById.GetValueOrDefault(i.ProductId),
-                Quantity = i.Quantity,
-                UnitPrice = i.UnitPrice
-            }).ToList()
-        };
     }
 }

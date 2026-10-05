@@ -135,7 +135,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(2, movements.Count);
         Assert.All(movements, m =>
         {
-            Assert.Equal(StockMovementType.Import, m.MovementType);
+            Assert.Equal(StockMovementType.Purchase, m.MovementType);
             Assert.Equal("PurchaseOrder", m.ReferenceType);
             Assert.True(m.Quantity > 0);
         });
@@ -377,10 +377,10 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var movements = await db.StockMovements.Where(m => m.ReferenceId == created.Id).ToListAsync();
-        Assert.Equal(4, movements.Count); // per product: one Import (+) and one Adjustment (-)
+        Assert.Equal(4, movements.Count); // per product: one Purchase (+) and one Adjustment (-)
         foreach (var (productId, quantity) in new[] { (p1, 3), (p2, 2) })
         {
-            var import = movements.Single(m => m.ProductId == productId && m.MovementType == StockMovementType.Import);
+            var import = movements.Single(m => m.ProductId == productId && m.MovementType == StockMovementType.Purchase);
             var adjustment = movements.Single(m => m.ProductId == productId && m.MovementType == StockMovementType.Adjustment);
             Assert.Equal(quantity, import.Quantity);
             Assert.Equal(-quantity, adjustment.Quantity);
@@ -454,10 +454,10 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var movements = (await response.Content.ReadFromJsonAsync<List<StockMovementDto>>())!;
         Assert.Equal(2, movements.Count);
-        // Newest first: the cancellation's Adjustment, then the approval's Import
+        // Newest first: the cancellation's Adjustment, then the approval's Purchase
         Assert.Equal("Adjustment", movements[0].MovementType);
         Assert.Equal(-5, movements[0].Quantity);
-        Assert.Equal("Import", movements[1].MovementType);
+        Assert.Equal("Purchase", movements[1].MovementType);
         Assert.Equal(5, movements[1].Quantity);
         Assert.All(movements, m =>
         {
@@ -495,7 +495,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Contains(db.StockMovements, m =>
-            m.ReferenceId == created.Id && m.MovementType == StockMovementType.Export && m.Quantity == -5);
+            m.ReferenceId == created.Id && m.MovementType == StockMovementType.Sale && m.Quantity == -5);
     }
 
     [Fact]

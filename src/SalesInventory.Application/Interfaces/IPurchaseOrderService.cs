@@ -11,7 +11,7 @@ public interface IPurchaseOrderService
     // Computes totals and saves the order as a Draft; stock is not touched until it is approved
     Task<PurchaseOrder> CreatePurchaseOrderAsync(PurchaseOrder purchaseOrder);
 
-    // Draft -> Approved: increases stock and logs one Import movement per line, all in one transaction
+    // Draft -> Approved: increases stock and logs one Purchase movement per line, all in one transaction
     Task<PurchaseOrder> ApprovePurchaseOrderAsync(int id);
 
     // Approved -> Cancelled: takes the added stock back and logs one negative Adjustment movement per line, in one transaction

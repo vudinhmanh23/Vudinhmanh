@@ -15,8 +15,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<Customer> Customers => Set<Customer>();
-    public DbSet<Order> Orders => Set<Order>();
-    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
+    public DbSet<SalesOrderItem> SalesOrderItems => Set<SalesOrderItem>();
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
     public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
@@ -104,21 +104,25 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(c => c.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
         });
 
-        modelBuilder.Entity<Order>(entity =>
+        modelBuilder.Entity<SalesOrder>(entity =>
         {
+            entity.Property(o => o.DiscountAmount).HasColumnType("decimal(18,2)").HasDefaultValue(0m);
+            entity.Property(o => o.TotalAmount).HasColumnType("decimal(18,2)");
+
             entity.HasOne(o => o.Customer)
-                .WithMany(c => c.Orders)
+                .WithMany(c => c.SalesOrders)
                 .HasForeignKey(o => o.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        modelBuilder.Entity<OrderItem>(entity =>
+        modelBuilder.Entity<SalesOrderItem>(entity =>
         {
             entity.Property(oi => oi.UnitPrice).HasColumnType("decimal(18,2)");
+            entity.Property(oi => oi.LineTotal).HasColumnType("decimal(18,2)");
 
-            entity.HasOne(oi => oi.Order)
-                .WithMany(o => o.OrderItems)
-                .HasForeignKey(oi => oi.OrderId)
+            entity.HasOne(oi => oi.SalesOrder)
+                .WithMany(o => o.Items)
+                .HasForeignKey(oi => oi.SalesOrderId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(oi => oi.Product)

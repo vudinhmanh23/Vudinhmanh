@@ -83,6 +83,11 @@ public class GlobalExceptionHandlingMiddleware
                     Instance = context.Request.Path
                 };
 
+            // Another request changed the same row (e.g. stock) between our read and write
+            case Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException:
+                return Create(context, StatusCodes.Status409Conflict, "Concurrency conflict.",
+                    "https://tools.ietf.org/html/rfc9110#section-15.5.10", "The data was modified by another request. Please retry.");
+
             case NotFoundException:
                 return Create(context, StatusCodes.Status404NotFound, "Resource not found.",
                     "https://tools.ietf.org/html/rfc9110#section-15.5.5", exception.Message);

@@ -11,6 +11,6 @@ public class CreateOrderItemDto
     [Range(1, int.MaxValue)]
     public int Quantity { get; set; }
 
-    [Range(0, double.MaxValue)]
+    [Range(0, 999999999999.99)]
     public decimal UnitPrice { get; set; }
 }

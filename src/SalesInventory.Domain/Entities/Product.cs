@@ -38,6 +38,10 @@ public class Product
 
     public int StockQuantity { get; set; }
 
+    // Optimistic concurrency token: two sales racing for the same stock cannot both win
+    [Timestamp]
+    public byte[]? RowVersion { get; set; }
+
     public int CategoryId { get; set; }
     public Category? Category { get; set; }
 

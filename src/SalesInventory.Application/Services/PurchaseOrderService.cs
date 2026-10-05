@@ -130,7 +130,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         {
             var now = DateTime.UtcNow;
 
-            // One stock increase and one Import movement for EVERY line (the products are tracked via Include)
+            // One stock increase and one Purchase movement for EVERY line (the products are tracked via Include)
             foreach (var item in order.PurchaseOrderItems)
             {
                 var product = item.Product
@@ -141,7 +141,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 await _stockMovementRepository.AddAsync(new StockMovement
                 {
                     ProductId = item.ProductId,
-                    MovementType = StockMovementType.Import,
+                    MovementType = StockMovementType.Purchase,
                     Quantity = item.Quantity,
                     ReferenceType = PurchaseOrderReferenceType,
                     ReferenceId = order.Id,
@@ -218,7 +218,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             // Only an Approved order ever added stock, so only that case has anything to take back
             if (existing.Status == PurchaseOrderStatus.Approved)
             {
-                await ReverseStockAsync(existing, StockMovementType.Export, $"Deleted approved purchase order {existing.Code}", "xóa");
+                await ReverseStockAsync(existing, StockMovementType.Sale, $"Deleted approved purchase order {existing.Code}", "xóa");
             }
 
             // Line items are removed by the cascade delete on the foreign key

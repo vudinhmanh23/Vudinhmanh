@@ -22,6 +22,18 @@ public class SalesOrderRepository : Repository<SalesOrder>, ISalesOrderRepositor
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<SalesOrder>> GetByCustomerWithItemsAsync(int customerId)
+    {
+        return await _context.SalesOrders
+            .AsNoTracking()
+            .Where(o => o.CustomerId == customerId)
+            .Include(o => o.Items)
+                .ThenInclude(i => i.Product)
+            .OrderByDescending(o => o.OrderDate)
+            .ThenByDescending(o => o.Id)
+            .ToListAsync();
+    }
+
     public async Task<SalesOrder?> GetWithItemsAsync(int id)
     {
         return await _context.SalesOrders

@@ -1,5 +1,6 @@
 using SalesInventory.Domain.Entities;
 using SalesInventory.Application.Interfaces;
+using Microsoft.Extensions.Options;
 
 namespace SalesInventory.Application.Services;
 
@@ -7,11 +8,13 @@ public class ProductService : IProductService
 {
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Category> _categoryRepository;
+    private readonly InventorySettings _inventorySettings;
 
-    public ProductService(IRepository<Product> productRepository, IRepository<Category> categoryRepository)
+    public ProductService(IRepository<Product> productRepository, IRepository<Category> categoryRepository, IOptions<InventorySettings> inventorySettings)
     {
         _productRepository = productRepository;
         _categoryRepository = categoryRepository;
+        _inventorySettings = inventorySettings.Value;
     }
 
     public async Task<IEnumerable<Product>> GetProductsAsync()
@@ -34,6 +37,15 @@ public class ProductService : IProductService
     {
         var products = await _productRepository.GetAllAsync();
         return products.Where(p => !p.IsActive);
+    }
+
+    public async Task<IEnumerable<Product>> GetLowStockProductsAsync()
+    {
+        var products = await _productRepository.GetAllAsync();
+        return products
+            .Where(p => p.StockQuantity < _inventorySettings.LowStockThreshold)
+            .OrderBy(p => p.StockQuantity)
+            .ThenBy(p => p.Id);
     }
 
     public async Task<bool> IsSkuTakenAsync(string sku, int? excludeProductId)

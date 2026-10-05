@@ -44,6 +44,11 @@ public class SalesOrderService : ISalesOrderService
         return await _orderRepository.GetAllWithItemsAsync();
     }
 
+    public async Task<IReadOnlyList<SalesOrder>> GetOrdersByCustomerAsync(int customerId)
+    {
+        return await _orderRepository.GetByCustomerWithItemsAsync(customerId);
+    }
+
     public async Task<SalesOrder?> GetOrderAsync(int id)
     {
         return await _orderRepository.GetWithItemsAsync(id);

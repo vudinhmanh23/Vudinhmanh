@@ -17,11 +17,13 @@ public class CustomersController : ControllerBase
     private const int MaxPageSize = 100;
 
     private readonly ICustomerService _customerService;
+    private readonly ISalesOrderService _salesOrderService;
     private readonly IMapper _mapper;
 
-    public CustomersController(ICustomerService customerService, IMapper mapper)
+    public CustomersController(ICustomerService customerService, ISalesOrderService salesOrderService, IMapper mapper)
     {
         _customerService = customerService;
+        _salesOrderService = salesOrderService;
         _mapper = mapper;
     }
 
@@ -53,6 +55,19 @@ public class CustomersController : ControllerBase
     {
         var customer = await _customerService.GetCustomerAsync(id);
         return customer is null ? NotFound() : Ok(_mapper.Map<CustomerDto>(customer));
+    }
+
+    /// <summary>Gets the sales order history of a customer, newest first.</summary>
+    [HttpGet("{id}/orders")]
+    public async Task<ActionResult<IEnumerable<OrderDto>>> GetCustomerOrders(int id)
+    {
+        if (await _customerService.GetCustomerAsync(id) is null)
+        {
+            return NotFound();
+        }
+
+        var orders = await _salesOrderService.GetOrdersByCustomerAsync(id);
+        return Ok(_mapper.Map<List<OrderDto>>(orders));
     }
 
     /// <summary>Creates a new customer.</summary>

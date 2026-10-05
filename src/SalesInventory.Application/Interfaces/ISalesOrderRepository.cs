@@ -8,4 +8,7 @@ public interface ISalesOrderRepository : IRepository<SalesOrder>
     Task<IReadOnlyList<SalesOrder>> GetAllWithItemsAsync();
 
     Task<SalesOrder?> GetWithItemsAsync(int id);
+
+    // One customer's orders with items, newest first
+    Task<IReadOnlyList<SalesOrder>> GetByCustomerWithItemsAsync(int customerId);
 }

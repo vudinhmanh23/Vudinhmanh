@@ -11,6 +11,9 @@ public interface ISalesOrderService
     Task<IReadOnlyList<SalesOrder>> GetOrdersAsync();
     Task<SalesOrder?> GetOrderAsync(int id);
 
+    // Sales history of one customer, newest first (empty when the customer has no orders)
+    Task<IReadOnlyList<SalesOrder>> GetOrdersByCustomerAsync(int customerId);
+
     // Validates, deducts stock, logs one Sale movement per line and saves everything in one transaction
     Task<CreateSalesOrderResult> CreateOrderAsync(SalesOrder order);
     Task<bool> DeleteOrderAsync(int id);

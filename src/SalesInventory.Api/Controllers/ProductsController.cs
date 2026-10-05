@@ -103,6 +103,20 @@ public class ProductsController : ControllerBase
         return Ok(products.Select(p => ToDto(p, categoryNamesById.GetValueOrDefault(p.CategoryId), SupplierName(p, supplierNamesById))));
     }
 
+    /// <summary>Gets products whose stock is below the configured Inventory:LowStockThreshold, lowest first.</summary>
+    [HttpGet("low-stock")]
+    public async Task<ActionResult<IEnumerable<ProductDto>>> GetLowStockProducts()
+    {
+        var products = await _productService.GetLowStockProductsAsync();
+        var categories = await _categoryService.GetCategoriesAsync();
+        var categoryNamesById = categories.ToDictionary(c => c.Id, c => c.Name);
+
+        var suppliers = await _supplierService.GetSuppliersAsync();
+        var supplierNamesById = suppliers.ToDictionary(s => s.Id, s => s.Name);
+
+        return Ok(products.Select(p => ToDto(p, categoryNamesById.GetValueOrDefault(p.CategoryId), SupplierName(p, supplierNamesById))));
+    }
+
     /// <summary>Gets a single product by id.</summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<ProductDto>> GetProduct(int id)
@@ -130,6 +144,24 @@ public class ProductsController : ControllerBase
         }
 
         return Ok(_mapper.Map<IEnumerable<StockMovementDto>>(movements));
+    }
+
+    /// <summary>
+    /// Manually corrects a product's stock by a signed delta (e.g. after a stocktake) and logs an Adjustment movement.
+    /// Returns 409 when the result would be below zero.
+    /// </summary>
+    [HttpPost("{id}/adjust-stock")]
+    [Authorize(Policy = AuthPolicies.CanManageInventory)]
+    public async Task<ActionResult<StockAdjustmentDto>> AdjustStock(int id, AdjustStockDto dto)
+    {
+        var result = await _stockMovementService.AdjustStockAsync(id, dto.Delta, dto.Reason);
+        return Ok(new StockAdjustmentDto
+        {
+            ProductId = id,
+            PreviousQuantity = result.PreviousQuantity,
+            NewQuantity = result.NewQuantity,
+            Movement = _mapper.Map<StockMovementDto>(result.Movement)
+        });
     }
 
     /// <summary>Creates a new product.</summary>

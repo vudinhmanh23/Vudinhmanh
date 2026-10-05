@@ -9,6 +9,9 @@ public interface IProductService
     Task<Product?> GetProductAsync(int id);
     Task<Product?> GetProductBySkuAsync(string sku);
     Task<IEnumerable<Product>> GetInactiveProductsAsync();
+
+    // Products whose stock is below the configured Inventory:LowStockThreshold, lowest stock first
+    Task<IEnumerable<Product>> GetLowStockProductsAsync();
     Task<bool> IsSkuTakenAsync(string sku, int? excludeProductId);
     Task<bool> IsBarcodeTakenAsync(string barcode, int? excludeProductId);
     Task<IEnumerable<Product>> GetProductsByCategoryIdAsync(int categoryId);

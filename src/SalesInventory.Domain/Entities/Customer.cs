@@ -10,7 +10,7 @@ public class Customer
 
     [Required]
     [MaxLength(200)]
-    public string FullName { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     [MaxLength(20)]
     public string? Phone { get; set; }
@@ -18,8 +18,10 @@ public class Customer
     [MaxLength(200)]
     public string? Email { get; set; }
 
-    [MaxLength(300)]
+    [MaxLength(400)]
     public string? Address { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // A customer can place many orders
     public ICollection<Order> Orders { get; set; } = new List<Order>();

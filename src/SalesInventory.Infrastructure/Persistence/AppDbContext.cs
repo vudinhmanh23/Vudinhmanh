@@ -97,10 +97,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<Customer>(entity =>
         {
-            entity.Property(c => c.FullName).IsRequired().HasMaxLength(200);
+            entity.Property(c => c.Name).IsRequired().HasMaxLength(200);
             entity.Property(c => c.Phone).HasMaxLength(20);
             entity.Property(c => c.Email).HasMaxLength(200);
-            entity.Property(c => c.Address).HasMaxLength(300);
+            entity.Property(c => c.Address).HasMaxLength(400);
+            entity.Property(c => c.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
         });
 
         modelBuilder.Entity<Order>(entity =>

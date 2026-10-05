@@ -76,9 +76,9 @@ public sealed class PurchaseOrderServiceTests : IDisposable
         // Stock and the movement ledger are exactly as after the first approval
         Assert.Equal(60, await StockOfAsync(1));
         Assert.Equal(105, await StockOfAsync(2));
-        var movements = await _db.StockMovements.AsNoTracking().Where(m => m.ReferenceId == order.Id).ToListAsync();
+        var movements = await _db.StockMovements.AsNoTracking().Where(m => m.RefId == order.Id).ToListAsync();
         Assert.Equal(2, movements.Count);
-        Assert.All(movements, m => Assert.Equal(StockMovementType.Purchase, m.MovementType));
+        Assert.All(movements, m => Assert.Equal(StockMovementType.Import, m.MovementType));
         Assert.Equal(PurchaseOrderStatus.Approved, (await _db.PurchaseOrders.AsNoTracking().SingleAsync(o => o.Id == order.Id)).Status);
     }
 }

@@ -160,7 +160,7 @@ public class InventoryEndpointsTests : IClassFixture<CustomWebApplicationFactory
 
     private static async Task PostOrderAsync(HttpClient client, int customerId, int productId, DateTime date, int quantity, decimal unitPrice)
     {
-        var response = await client.PostAsJsonAsync("/api/salesorders", new
+        var response = await client.PostAsJsonAsync("/api/sales-orders", new
         {
             orderDate = date,
             customerId,

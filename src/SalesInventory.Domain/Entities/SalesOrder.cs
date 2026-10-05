@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using SalesInventory.Domain.Enums;
 
 namespace SalesInventory.Domain.Entities;
 
@@ -7,6 +8,11 @@ public class SalesOrder
 {
     [Key]
     public int Id { get; set; }
+
+    // Human-readable unique number, e.g. SO-20261005-0001; generated server-side
+    [Required]
+    [MaxLength(30)]
+    public string OrderNumber { get; set; } = string.Empty;
 
     [Required]
     public DateTime OrderDate { get; set; }
@@ -19,6 +25,12 @@ public class SalesOrder
 
     // Sum of LineTotal minus DiscountAmount, never negative; always computed server-side
     public decimal TotalAmount { get; set; }
+
+    // Optional free-text remark about the order
+    [MaxLength(500)]
+    public string? Note { get; set; }
+
+    public SalesOrderStatus Status { get; set; } = SalesOrderStatus.Completed;
 
     // Line items belonging to this order
     public ICollection<SalesOrderItem> Items { get; set; } = new List<SalesOrderItem>();

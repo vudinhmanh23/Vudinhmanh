@@ -12,8 +12,8 @@ Mã trạng thái chung: **401** khi không có token hoặc token không hợp 
 | `POST/PUT/DELETE /api/categories` | 401 | 403 | OK | OK |
 | `/api/suppliers` (CRUD) | 401 | 403 | OK | OK |
 | `/api/purchase-orders` (đơn nhập kho, gồm `POST /{id}/approve`) | 401 | 403 | OK | OK |
-| `GET/POST /api/salesorders` (đơn bán) | 401 | OK | OK | OK |
-| `DELETE /api/salesorders/{id}` | 401 | 403 | 403 | OK |
+| `GET/POST /api/sales-orders` (đơn bán) | 401 | OK | OK | OK |
+| `DELETE /api/sales-orders/{id}` | 401 | 403 | 403 | OK |
 | `/api/users`, `/api/admin/employees`, `POST /api/auth/assign-role` | 401 | 403 | 403 | OK |
 
 Quy tắc "Admin hoặc Kho" cho nghiệp vụ tồn kho được định nghĩa một lần trong policy `CanManageInventory` (`Program.cs`) và áp bằng `[Authorize(Policy = "CanManageInventory")]`.

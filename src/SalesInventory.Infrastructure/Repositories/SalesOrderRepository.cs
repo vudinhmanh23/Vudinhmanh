@@ -42,4 +42,15 @@ public class SalesOrderRepository : Repository<SalesOrder>, ISalesOrderRepositor
                 .ThenInclude(i => i.Product)
             .FirstOrDefaultAsync(o => o.Id == id);
     }
+
+    public async Task<string?> GetLastOrderNumberWithPrefixAsync(string prefix)
+    {
+        // Longest first so a 5-digit sequence sorts after a 4-digit one
+        return await _context.SalesOrders
+            .Where(o => o.OrderNumber.StartsWith(prefix))
+            .OrderByDescending(o => o.OrderNumber.Length)
+            .ThenByDescending(o => o.OrderNumber)
+            .Select(o => o.OrderNumber)
+            .FirstOrDefaultAsync();
+    }
 }

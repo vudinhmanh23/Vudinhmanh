@@ -141,10 +141,10 @@ public class PurchaseOrderService : IPurchaseOrderService
                 await _stockMovementRepository.AddAsync(new StockMovement
                 {
                     ProductId = item.ProductId,
-                    MovementType = StockMovementType.Purchase,
+                    MovementType = StockMovementType.Import,
                     Quantity = item.Quantity,
-                    ReferenceType = PurchaseOrderReferenceType,
-                    ReferenceId = order.Id,
+                    RefType = PurchaseOrderReferenceType,
+                    RefId = order.Id,
                     CreatedAt = now,
                     Note = $"Approved purchase order {order.Code}"
                 });
@@ -259,8 +259,8 @@ public class PurchaseOrderService : IPurchaseOrderService
                 ProductId = item.ProductId,
                 MovementType = movementType,
                 Quantity = -item.Quantity,
-                ReferenceType = PurchaseOrderReferenceType,
-                ReferenceId = order.Id,
+                RefType = PurchaseOrderReferenceType,
+                RefId = order.Id,
                 CreatedAt = now,
                 Note = note
             });

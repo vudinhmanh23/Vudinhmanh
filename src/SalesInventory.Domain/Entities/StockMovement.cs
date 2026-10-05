@@ -20,10 +20,10 @@ public class StockMovement
     // The kind of document that caused the movement, e.g. "PurchaseOrder"
     [Required]
     [MaxLength(50)]
-    public string ReferenceType { get; set; } = string.Empty;
+    public string RefType { get; set; } = string.Empty;
 
     // Id of that document (e.g. PurchaseOrder.Id)
-    public int ReferenceId { get; set; }
+    public int RefId { get; set; }
 
     // UTC timestamp of the movement
     public DateTime CreatedAt { get; set; }

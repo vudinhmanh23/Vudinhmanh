@@ -10,7 +10,7 @@ namespace SalesInventory.Api.Controllers;
 
 // Sales orders: Admin, BanHang and Kho may create/read; delete is Admin only
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/sales-orders")]
 [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.BanHang},{AppRoles.Kho}")]
 public class SalesOrdersController : ControllerBase
 {

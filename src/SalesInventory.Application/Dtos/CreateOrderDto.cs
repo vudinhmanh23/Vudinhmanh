@@ -15,6 +15,9 @@ public class CreateOrderDto
     [Range(0, 999999999999.99)]
     public decimal DiscountAmount { get; set; }
 
+    [MaxLength(500)]
+    public string? Note { get; set; }
+
     [Required]
     [MinLength(1)]
     public List<CreateOrderItemDto> Items { get; set; } = new();

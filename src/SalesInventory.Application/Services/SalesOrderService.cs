@@ -90,52 +90,64 @@ public class SalesOrderService : ISalesOrderService
             throw Invalid("DiscountAmount", "Discount cannot exceed the sum of the line totals.");
         }
 
-        // Load every product (tracked) and check the WHOLE order against stock before changing anything.
-        // Lines of the same product are summed so two lines cannot each pass while together overselling.
-        var products = new Dictionary<int, Product>();
-        foreach (var productId in items.Select(i => i.ProductId).Distinct())
-        {
-            products[productId] = await _productRepository.GetByIdAsync(productId)
-                ?? throw new NotFoundException($"Product with Id {productId} does not exist.");
-        }
-
-        var shortages = items
-            .GroupBy(i => i.ProductId)
-            .Select(g => (Product: products[g.Key], Requested: g.Sum(i => i.Quantity)))
-            .Where(x => x.Requested > x.Product.StockQuantity)
-            .Select(x => $"{x.Product.Name} (Id {x.Product.Id}): requested {x.Requested}, in stock {x.Product.StockQuantity}")
-            .ToList();
-        if (shortages.Count > 0)
-        {
-            throw new ConflictException($"Insufficient stock: {string.Join("; ", shortages)}.");
-        }
-
-        // From here on it is one all-or-nothing unit: order, stock deduction and ledger rows
+        // One all-or-nothing unit: stock check, order, stock deduction and ledger rows
         await using var transaction = await _unitOfWork.BeginTransactionAsync();
-
-        await _orderRepository.AddAsync(order);
-        await _orderRepository.SaveChangesAsync(); // gives the order its Id for the movement reference
-
-        var now = DateTime.UtcNow;
-        foreach (var item in items)
+        var products = new Dictionary<int, Product>();
+        try
         {
-            products[item.ProductId].StockQuantity -= item.Quantity;
-
-            await _stockMovementRepository.AddAsync(new StockMovement
+            // Load every product (tracked) and check the WHOLE order against stock before changing anything.
+            // Lines of the same product are summed so two lines cannot each pass while together overselling.
+            foreach (var productId in items.Select(i => i.ProductId).Distinct())
             {
-                ProductId = item.ProductId,
-                MovementType = StockMovementType.Sale,
-                Quantity = -item.Quantity,
-                ReferenceType = SalesOrderReferenceType,
-                ReferenceId = order.Id,
-                CreatedAt = now,
-                Note = $"Sales order {order.Id}"
-            });
-        }
+                products[productId] = await _productRepository.GetByIdAsync(productId)
+                    ?? throw new NotFoundException($"Product with Id {productId} does not exist.");
+            }
 
-        // A concurrent sale of the same product trips Product.RowVersion here (mapped to HTTP 409)
-        await _orderRepository.SaveChangesAsync();
-        await transaction.CommitAsync();
+            var shortages = items
+                .GroupBy(i => i.ProductId)
+                .Select(g => (Product: products[g.Key], Requested: g.Sum(i => i.Quantity)))
+                .Where(x => x.Requested > x.Product.StockQuantity)
+                .Select(x => $"{x.Product.Name} (Id {x.Product.Id}): requested {x.Requested}, in stock {x.Product.StockQuantity}")
+                .ToList();
+            if (shortages.Count > 0)
+            {
+                // HTTP 400 ProblemDetails naming each product, the stock on hand and the quantity wanted
+                throw Invalid("Items", $"Insufficient stock: {string.Join("; ", shortages)}.");
+            }
+
+            order.OrderNumber = await GenerateOrderNumberAsync(DateTime.UtcNow);
+            order.Status = SalesOrderStatus.Completed;
+
+            await _orderRepository.AddAsync(order);
+            await _orderRepository.SaveChangesAsync(); // gives the order its Id for the movement reference
+
+            var now = DateTime.UtcNow;
+            foreach (var item in items)
+            {
+                products[item.ProductId].StockQuantity -= item.Quantity;
+
+                await _stockMovementRepository.AddAsync(new StockMovement
+                {
+                    ProductId = item.ProductId,
+                    MovementType = StockMovementType.Sale,
+                    Quantity = -item.Quantity,
+                    RefType = SalesOrderReferenceType,
+                    RefId = order.Id,
+                    CreatedAt = now,
+                    Note = $"Sales order {order.OrderNumber}"
+                });
+            }
+
+            // A concurrent sale of the same product trips Product.RowVersion here (mapped to HTTP 409)
+            await _orderRepository.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            // Any failure undoes the order, the stock deduction and the ledger rows together
+            await transaction.RollbackAsync();
+            throw;
+        }
 
         var warnings = products.Values
             .Where(p => p.StockQuantity < _settings.LowStockThreshold)
@@ -143,10 +155,18 @@ public class SalesOrderService : ISalesOrderService
             .ToList();
 
         _logger.LogInformation(
-            "Sales order {OrderId} created for customer {CustomerId}: {ItemCount} line(s), total {TotalAmount}, {WarningCount} low-stock warning(s)",
-            order.Id, order.CustomerId, items.Count, order.TotalAmount, warnings.Count);
+            "Sales order {OrderId} ({OrderNumber}) created for customer {CustomerId}: {ItemCount} line(s), total {TotalAmount}, {WarningCount} low-stock warning(s)",
+            order.Id, order.OrderNumber, order.CustomerId, items.Count, order.TotalAmount, warnings.Count);
 
         return new CreateSalesOrderResult(order, warnings);
+    }
+
+    private async Task<string> GenerateOrderNumberAsync(DateTime now)
+    {
+        var prefix = $"SO-{now:yyyyMMdd}-";
+        var last = await _orderRepository.GetLastOrderNumberWithPrefixAsync(prefix);
+        var next = last is not null && int.TryParse(last[prefix.Length..], out var n) ? n + 1 : 1;
+        return $"{prefix}{next:0000}";
     }
 
     public async Task<bool> DeleteOrderAsync(int id)

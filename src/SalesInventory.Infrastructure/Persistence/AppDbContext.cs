@@ -106,6 +106,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<SalesOrder>(entity =>
         {
+            entity.Property(o => o.OrderNumber).IsRequired().HasMaxLength(30);
+            entity.HasIndex(o => o.OrderNumber).IsUnique();
+            entity.Property(o => o.Note).HasMaxLength(500);
+            entity.Property(o => o.Status).HasConversion<int>();
             entity.Property(o => o.DiscountAmount).HasColumnType("decimal(18,2)").HasDefaultValue(0m);
             entity.Property(o => o.TotalAmount).HasColumnType("decimal(18,2)");
 
@@ -163,7 +167,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<StockMovement>(entity =>
         {
             entity.Property(sm => sm.MovementType).HasConversion<int>();
-            entity.Property(sm => sm.ReferenceType).IsRequired().HasMaxLength(50);
+            entity.Property(sm => sm.RefType).IsRequired().HasMaxLength(50);
             entity.Property(sm => sm.Note).HasMaxLength(500);
 
             entity.HasOne(sm => sm.Product)
@@ -172,7 +176,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasIndex(sm => sm.ProductId);
-            entity.HasIndex(sm => new { sm.ReferenceType, sm.ReferenceId });
+            entity.HasIndex(sm => new { sm.RefType, sm.RefId });
         });
     }
 }

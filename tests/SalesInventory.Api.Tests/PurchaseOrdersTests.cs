@@ -109,7 +109,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(5, await GetStockAsync(p2));
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.Empty(await db.StockMovements.Where(m => m.ReferenceId == created.Id).ToListAsync());
+        Assert.Empty(await db.StockMovements.Where(m => m.RefId == created.Id).ToListAsync());
     }
 
     [Fact]
@@ -131,12 +131,12 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var movements = await db.StockMovements.Where(m => m.ReferenceId == created.Id).ToListAsync();
+        var movements = await db.StockMovements.Where(m => m.RefId == created.Id).ToListAsync();
         Assert.Equal(2, movements.Count);
         Assert.All(movements, m =>
         {
-            Assert.Equal(StockMovementType.Purchase, m.MovementType);
-            Assert.Equal("PurchaseOrder", m.ReferenceType);
+            Assert.Equal(StockMovementType.Import, m.MovementType);
+            Assert.Equal("PurchaseOrder", m.RefType);
             Assert.True(m.Quantity > 0);
         });
         Assert.Equal(3, movements.Single(m => m.ProductId == p1).Quantity);
@@ -376,11 +376,11 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var movements = await db.StockMovements.Where(m => m.ReferenceId == created.Id).ToListAsync();
+        var movements = await db.StockMovements.Where(m => m.RefId == created.Id).ToListAsync();
         Assert.Equal(4, movements.Count); // per product: one Purchase (+) and one Adjustment (-)
         foreach (var (productId, quantity) in new[] { (p1, 3), (p2, 2) })
         {
-            var import = movements.Single(m => m.ProductId == productId && m.MovementType == StockMovementType.Purchase);
+            var import = movements.Single(m => m.ProductId == productId && m.MovementType == StockMovementType.Import);
             var adjustment = movements.Single(m => m.ProductId == productId && m.MovementType == StockMovementType.Adjustment);
             Assert.Equal(quantity, import.Quantity);
             Assert.Equal(-quantity, adjustment.Quantity);
@@ -428,7 +428,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         using var check = _factory.Services.CreateScope();
         var db2 = check.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Equal(PurchaseOrderStatus.Approved, (await db2.PurchaseOrders.AsNoTracking().SingleAsync(o => o.Id == created.Id)).Status);
-        Assert.DoesNotContain(db2.StockMovements, m => m.ReferenceId == created.Id && m.MovementType == StockMovementType.Adjustment);
+        Assert.DoesNotContain(db2.StockMovements, m => m.RefId == created.Id && m.MovementType == StockMovementType.Adjustment);
     }
 
     [Fact]
@@ -457,13 +457,13 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         // Newest first: the cancellation's Adjustment, then the approval's Purchase
         Assert.Equal("Adjustment", movements[0].MovementType);
         Assert.Equal(-5, movements[0].Quantity);
-        Assert.Equal("Purchase", movements[1].MovementType);
+        Assert.Equal("Import", movements[1].MovementType);
         Assert.Equal(5, movements[1].Quantity);
         Assert.All(movements, m =>
         {
             Assert.Equal(p, m.ProductId);
-            Assert.Equal("PurchaseOrder", m.ReferenceType);
-            Assert.Equal(created.Id, m.ReferenceId);
+            Assert.Equal("PurchaseOrder", m.RefType);
+            Assert.Equal(created.Id, m.RefId);
         });
     }
 
@@ -495,7 +495,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Contains(db.StockMovements, m =>
-            m.ReferenceId == created.Id && m.MovementType == StockMovementType.Sale && m.Quantity == -5);
+            m.RefId == created.Id && m.MovementType == StockMovementType.Sale && m.Quantity == -5);
     }
 
     [Fact]
@@ -511,6 +511,6 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(10, await GetStockAsync(p));
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.Empty(await db.StockMovements.Where(m => m.ReferenceId == created.Id).ToListAsync());
+        Assert.Empty(await db.StockMovements.Where(m => m.RefId == created.Id).ToListAsync());
     }
 }

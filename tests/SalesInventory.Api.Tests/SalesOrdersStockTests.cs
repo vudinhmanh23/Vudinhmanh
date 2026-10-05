@@ -10,7 +10,7 @@ using SalesInventory.Infrastructure.Persistence;
 
 namespace SalesInventory.Api.Tests;
 
-// Sales order creation: totals, stock deduction, Sale movements, 409 on oversell, low-stock warnings
+// Sales order creation: totals, stock deduction, Sale movements, 400 on oversell, low-stock warnings
 public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly CustomWebApplicationFactory _factory;
@@ -26,7 +26,7 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
         var (customerId, productId) = Seed(stock: 50);
         var client = await AdminClientAsync();
 
-        var response = await client.PostAsJsonAsync("/api/salesorders", Order(customerId, discount: 5000m, (productId, 4, 12500.5m)));
+        var response = await client.PostAsJsonAsync("/api/sales-orders", Order(customerId, discount: 5000m, (productId, 4, 12500.5m)));
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var order = await response.Content.ReadFromJsonAsync<OrderDto>();
@@ -39,35 +39,60 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
         var movement = Assert.Single(Movements(productId));
         Assert.Equal(StockMovementType.Sale, movement.MovementType);
         Assert.Equal(-4, movement.Quantity);
-        Assert.Equal(order.Id, movement.ReferenceId);
+        Assert.Equal(order.Id, movement.RefId);
     }
 
     [Fact]
-    public async Task Create_QuantityAboveStock_Returns409ProblemDetails_AndChangesNothing()
+    public async Task Create_WithNote_ReturnsNoteInResponse_AndOnGet()
+    {
+        var (customerId, productId) = Seed(stock: 10);
+        var client = await AdminClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/sales-orders", new
+        {
+            orderDate = DateTime.UtcNow,
+            customerId,
+            discountAmount = 0m,
+            note = "Deliver after 5pm",
+            items = new[] { new { productId, quantity = 1, unitPrice = 100m } }
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<OrderDto>();
+        Assert.Equal("Deliver after 5pm", created!.Note);
+
+        var fetched = await client.GetFromJsonAsync<OrderDto>($"/api/sales-orders/{created.Id}");
+        Assert.Equal("Deliver after 5pm", fetched!.Note);
+    }
+
+    [Fact]
+    public async Task Create_QuantityAboveStock_Returns400ProblemDetails_AndChangesNothing()
     {
         var (customerId, productId) = Seed(stock: 3);
         var client = await AdminClientAsync();
 
-        var response = await client.PostAsJsonAsync("/api/salesorders", Order(customerId, 0m, (productId, 4, 100m)));
+        var response = await client.PostAsJsonAsync("/api/sales-orders", Order(customerId, 0m, (productId, 4, 100m)));
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("requested 4, in stock 3", body);
         Assert.Equal(3, StockOf(productId));
         Assert.Empty(Movements(productId));
         Assert.Empty(OrdersOf(customerId));
     }
 
     [Fact]
-    public async Task Create_OneLineFine_OneLineOversold_Returns409_AndNeitherProductChanges()
+    public async Task Create_OneLineFine_OneLineOversold_Returns400_AndNeitherProductChanges()
     {
         var (customerId, okProduct) = Seed(stock: 10);
         var (_, shortProduct) = Seed(stock: 1);
         var client = await AdminClientAsync();
 
-        var response = await client.PostAsJsonAsync("/api/salesorders",
+        var response = await client.PostAsJsonAsync("/api/sales-orders",
             Order(customerId, 0m, (okProduct, 2, 100m), (shortProduct, 2, 100m)));
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(10, StockOf(okProduct));
         Assert.Equal(1, StockOf(shortProduct));
         Assert.Empty(Movements(okProduct));
@@ -79,10 +104,10 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
         var (customerId, productId) = Seed(stock: 5);
         var client = await AdminClientAsync();
 
-        var response = await client.PostAsJsonAsync("/api/salesorders",
+        var response = await client.PostAsJsonAsync("/api/sales-orders",
             Order(customerId, 0m, (productId, 3, 100m), (productId, 3, 100m)));
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(5, StockOf(productId));
     }
 
@@ -92,7 +117,7 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
         var (customerId, productId) = Seed(stock: 8);
         var client = await AdminClientAsync();
 
-        var response = await client.PostAsJsonAsync("/api/salesorders", Order(customerId, 0m, (productId, 4, 100m)));
+        var response = await client.PostAsJsonAsync("/api/sales-orders", Order(customerId, 0m, (productId, 4, 100m)));
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var order = await response.Content.ReadFromJsonAsync<OrderDto>();
@@ -106,7 +131,7 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
         var (customerId, productId) = Seed(stock: 8);
         var client = await AdminClientAsync();
 
-        var response = await client.PostAsJsonAsync("/api/salesorders", Order(customerId, 0m, (productId, 3, 100m)));
+        var response = await client.PostAsJsonAsync("/api/sales-orders", Order(customerId, 0m, (productId, 3, 100m)));
 
         var order = await response.Content.ReadFromJsonAsync<OrderDto>();
         Assert.Empty(order!.Warnings); // 5 left is not < 5
@@ -118,7 +143,7 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
         var (customerId, productId) = Seed(stock: 10);
         var client = await AdminClientAsync();
 
-        var response = await client.PostAsJsonAsync("/api/salesorders", Order(customerId, 1000m, (productId, 1, 100m)));
+        var response = await client.PostAsJsonAsync("/api/sales-orders", Order(customerId, 1000m, (productId, 1, 100m)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(10, StockOf(productId));
@@ -131,7 +156,7 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
         var (_, productId) = Seed(stock: 10);
         var client = await AdminClientAsync();
 
-        var response = await client.PostAsJsonAsync("/api/salesorders", Order(987654, 0m, (productId, 1, 100m)));
+        var response = await client.PostAsJsonAsync("/api/sales-orders", Order(987654, 0m, (productId, 1, 100m)));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal(10, StockOf(productId));
@@ -143,7 +168,7 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
         var (customerId, productId) = Seed(stock: 10);
         var client = await AdminClientAsync();
 
-        var response = await client.PostAsJsonAsync("/api/salesorders", Order(customerId, 0m, (productId, 0, 100m)));
+        var response = await client.PostAsJsonAsync("/api/sales-orders", Order(customerId, 0m, (productId, 0, 100m)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }

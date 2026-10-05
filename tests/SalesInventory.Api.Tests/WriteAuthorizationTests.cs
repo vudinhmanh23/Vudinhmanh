@@ -53,7 +53,7 @@ public class WriteAuthorizationTests : IClassFixture<CustomWebApplicationFactory
     {
         var client = await ClientAsAsync(role);
 
-        var response = await client.DeleteAsync("/api/salesorders/999999");
+        var response = await client.DeleteAsync("/api/sales-orders/999999");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }

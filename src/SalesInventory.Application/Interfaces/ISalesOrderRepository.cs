@@ -11,4 +11,7 @@ public interface ISalesOrderRepository : IRepository<SalesOrder>
 
     // One customer's orders with items, newest first
     Task<IReadOnlyList<SalesOrder>> GetByCustomerWithItemsAsync(int customerId);
+
+    // Highest existing order number starting with the prefix, or null when none
+    Task<string?> GetLastOrderNumberWithPrefixAsync(string prefix);
 }

@@ -10,6 +10,7 @@ public class SalesOrderProfile : Profile
     public SalesOrderProfile()
     {
         CreateMap<SalesOrder, OrderDto>()
+            .ForMember(d => d.Status, o => o.MapFrom(s => s.Status.ToString()))
             .ForMember(d => d.Warnings, o => o.Ignore());
         CreateMap<SalesOrderItem, OrderItemDto>()
             .ForMember(d => d.ProductName, o => o.MapFrom(s => s.Product != null ? s.Product.Name : null));
@@ -18,6 +19,8 @@ public class SalesOrderProfile : Profile
         CreateMap<CreateOrderDto, SalesOrder>()
             .ForMember(o => o.Id, o => o.Ignore())
             .ForMember(o => o.Customer, o => o.Ignore())
+            .ForMember(o => o.OrderNumber, o => o.Ignore())
+            .ForMember(o => o.Status, o => o.Ignore())
             .ForMember(o => o.TotalAmount, o => o.Ignore());
         CreateMap<CreateOrderItemDto, SalesOrderItem>()
             .ForMember(i => i.Id, o => o.Ignore())

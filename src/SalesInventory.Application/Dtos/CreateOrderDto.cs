@@ -18,7 +18,8 @@ public class CreateOrderDto
     [MaxLength(500)]
     public string? Note { get; set; }
 
-    [Required]
-    [MinLength(1)]
+    // Model binding rejects an empty list with this message (400) before the service, let alone a transaction, is reached
+    [Required(ErrorMessage = "Đơn hàng phải có ít nhất một mặt hàng")]
+    [MinLength(1, ErrorMessage = "Đơn hàng phải có ít nhất một mặt hàng")]
     public List<CreateOrderItemDto> Items { get; set; } = new();
 }

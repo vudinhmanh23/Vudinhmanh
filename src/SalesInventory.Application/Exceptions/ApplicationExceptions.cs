@@ -24,7 +24,11 @@ public class UnprocessableEntityException : Exception
     }
 }
 
-public record StockShortage(int ProductId, string ProductName, int Requested, int Available);
+public record StockShortage(int ProductId, string ProductName, int Requested, int Available)
+{
+    // How many more units than the shelf holds this order asked for
+    public int Missing => Requested - Available;
+}
 
 // One or more order lines need more stock than is on hand; the API maps this to 409 ProblemDetails
 public class InsufficientStockException : Exception
@@ -33,7 +37,7 @@ public class InsufficientStockException : Exception
 
     public InsufficientStockException(IReadOnlyList<StockShortage> shortages)
         : base(string.Join(" ", shortages.Select(s =>
-            $"Không đủ tồn kho cho sản phẩm '{s.ProductName}' (Id {s.ProductId}): cần {s.Requested}, còn {s.Available}.")))
+            $"Không đủ tồn kho cho sản phẩm '{s.ProductName}' (Id {s.ProductId}): cần {s.Requested}, còn {s.Available}, thiếu {s.Missing}.")))
     {
         Shortages = shortages;
     }

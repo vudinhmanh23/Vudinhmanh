@@ -55,9 +55,10 @@ public class SalesOrderService : ISalesOrderService
     public async Task<CreateSalesOrderResult> CreateOrderAsync(SalesOrder order)
     {
         var items = order.Items.ToList();
+        // Cheap input checks come first: nothing below this point has opened a transaction yet
         if (items.Count == 0)
         {
-            throw Invalid("Items", "A sales order must contain at least one item.");
+            throw Invalid("Items", "Đơn hàng phải có ít nhất một mặt hàng");
         }
 
         if (items.Any(i => i.Quantity <= 0))

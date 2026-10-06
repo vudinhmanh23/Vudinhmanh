@@ -105,7 +105,7 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("Không đủ tồn kho cho sản phẩm", body);
-        Assert.Contains("cần 4, còn 3", body);
+        Assert.Contains("cần 4, còn 3, thiếu 1", body);
         Assert.Equal(3, StockOf(productId));
         Assert.Empty(Movements(productId));
         Assert.Empty(OrdersOf(customerId));
@@ -207,6 +207,26 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal(10, StockOf(productId));
+    }
+
+    [Fact]
+    public async Task Create_EmptyItems_Returns400ProblemDetails_WithVietnameseMessage_AndCreatesNothing()
+    {
+        var (customerId, _) = Seed(stock: 5);
+        var client = await AdminClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/sales-orders", new
+        {
+            orderDate = DateTime.UtcNow,
+            customerId,
+            discountAmount = 0m,
+            items = Array.Empty<object>()
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("Đơn hàng phải có ít nhất một mặt hàng", await response.Content.ReadAsStringAsync());
+        Assert.Empty(OrdersOf(customerId));
     }
 
     [Fact]

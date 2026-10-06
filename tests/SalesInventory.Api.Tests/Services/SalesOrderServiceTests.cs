@@ -74,6 +74,7 @@ public sealed class SalesOrderServiceTests : IDisposable
         Assert.Equal(1, shortage.ProductId);
         Assert.Equal(51, shortage.Requested);
         Assert.Equal(50, shortage.Available);
+        Assert.Equal(1, shortage.Missing);
         Assert.Contains(shortage.ProductName, ex.Message);
 
         // The state AFTER the failure: stock still 50, no order, no items, no ledger rows
@@ -88,6 +89,25 @@ public sealed class SalesOrderServiceTests : IDisposable
 
         Assert.Equal(50, await StockOfAsync(1));
         Assert.Equal(100, await StockOfAsync(2));
+        await AssertNothingPersistedAsync();
+    }
+
+    [Fact]
+    public async Task CreateOrderAsync_ThreeLinesWithTheLastOversold_ThrowsAndLeavesTheDatabaseUntouched()
+    {
+        // Seeded stock: product 1 = 50, product 2 = 100, product 3 = 500; the last line asks for 501
+        var ex = await Assert.ThrowsAsync<InsufficientStockException>(
+            () => _service.CreateOrderAsync(Order((1, 10), (2, 20), (3, 501))));
+
+        var shortage = Assert.Single(ex.Shortages);
+        Assert.Equal(3, shortage.ProductId);
+        Assert.Equal(501, shortage.Requested);
+        Assert.Equal(500, shortage.Available);
+
+        // The two valid lines were not deducted, and SalesOrders, SalesOrderItems and StockMovements gained no rows
+        Assert.Equal(50, await StockOfAsync(1));
+        Assert.Equal(100, await StockOfAsync(2));
+        Assert.Equal(500, await StockOfAsync(3));
         await AssertNothingPersistedAsync();
     }
 
@@ -126,6 +146,43 @@ public sealed class SalesOrderServiceTests : IDisposable
 
         Assert.Equal(50, await StockOfAsync(1));
         await AssertNothingPersistedAsync();
+    }
+
+    [Fact]
+    public async Task CreateOrderAsync_EmptyItems_IsRejectedBeforeAnyTransactionIsOpened()
+    {
+        var unitOfWork = new CountingUnitOfWork(new UnitOfWork(_db));
+        var service = new SalesOrderService(
+            new SalesOrderRepository(_db),
+            new Repository<Customer>(_db),
+            new Repository<Product>(_db),
+            new Repository<StockMovement>(_db),
+            unitOfWork,
+            NullLogger<SalesOrderService>.Instance);
+
+        var ex = await Assert.ThrowsAsync<FluentValidation.ValidationException>(() => service.CreateOrderAsync(Order()));
+
+        Assert.Contains("Đơn hàng phải có ít nhất một mặt hàng", ex.Errors.Single().ErrorMessage);
+        Assert.Equal(0, unitOfWork.BeginCalls); // validation ran before BeginTransactionAsync
+        await AssertNothingPersistedAsync();
+    }
+
+    // Test double: counts how many transactions the service opened
+    private sealed class CountingUnitOfWork : SalesInventory.Application.Interfaces.IUnitOfWork
+    {
+        private readonly SalesInventory.Application.Interfaces.IUnitOfWork _inner;
+
+        public CountingUnitOfWork(SalesInventory.Application.Interfaces.IUnitOfWork inner) => _inner = inner;
+
+        public int BeginCalls { get; private set; }
+
+        public void ResetTracking() => _inner.ResetTracking();
+
+        public Task<SalesInventory.Application.Interfaces.IUnitOfWorkTransaction> BeginTransactionAsync()
+        {
+            BeginCalls++;
+            return _inner.BeginTransactionAsync();
+        }
     }
 
     // Test double: behaves like the real unit of work except that CommitAsync always fails

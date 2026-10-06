@@ -1,0 +1,64 @@
+﻿@page "/login"
+@using System.ComponentModel.DataAnnotations
+@inject AuthService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Đăng nhập - SalesInventory</PageTitle>
+
+<h1>Đăng nhập</h1>
+
+<div class="login-card">
+    <EditForm Model="model" OnValidSubmit="SubmitAsync" FormName="login">
+        <DataAnnotationsValidator />
+
+        <div class="mb-3">
+            <label class="form-label" for="email">Tên đăng nhập (email)</label>
+            <InputText id="email" class="form-control" @bind-Value="model.Email" autocomplete="username" />
+            <ValidationMessage For="() => model.Email" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="password">Mật khẩu</label>
+            <InputText id="password" type="password" class="form-control" @bind-Value="model.Password" autocomplete="current-password" />
+            <ValidationMessage For="() => model.Password" />
+        </div>
+
+        @if (errorMessage is not null)
+        {
+            <div class="alert alert-danger" role="alert">@errorMessage</div>
+        }
+
+        <LoadingButton Text="Đăng nhập" LoadingText="Đang đăng nhập…" IsLoading="busy" />
+    </EditForm>
+</div>
+
+@code {
+    private readonly LoginModel model = new();
+    private string? errorMessage;
+    private bool busy;
+
+    private async Task SubmitAsync()
+    {
+        busy = true;
+        errorMessage = null;
+
+        var result = await Auth.LoginAsync(model.Email, model.Password);
+        if (result.Success)
+        {
+            Navigation.NavigateTo("/products");
+            return;
+        }
+
+        errorMessage = result.Error ?? "Đăng nhập thất bại";
+        busy = false;
+    }
+
+    private class LoginModel
+    {
+        [Required(ErrorMessage = "Vui lòng nhập tên đăng nhập")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Vui lòng nhập mật khẩu")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

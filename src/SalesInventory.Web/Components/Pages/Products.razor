@@ -1,0 +1,426 @@
+﻿@page "/products"
+@implements IDisposable
+@using System.Globalization
+@using System.Net
+@using SalesInventory.Web.Models
+@inject IHttpClientFactory HttpClientFactory
+@inject ToastService Toast
+@inject TokenStore Tokens
+@inject NavigationManager Navigation
+@inject CatalogApi Catalog
+
+<PageTitle>Sản phẩm - SalesInventory</PageTitle>
+
+<div class="page-header">
+    <h1>Sản phẩm</h1>
+    <AuthorizeView Roles="Admin,Kho">
+        <a class="btn btn-primary" href="products/new">Thêm sản phẩm</a>
+    </AuthorizeView>
+</div>
+
+<div class="filters">
+    <input type="search" class="form-control" placeholder="Tìm theo tên sản phẩm"
+           value="@_search" @oninput="OnSearchInput" />
+
+    <select class="form-select" @onchange="OnCategoryChanged">
+        <option value="">Tất cả danh mục</option>
+        @foreach (var category in _categories)
+        {
+            <option value="@category.Id" selected="@(_categoryId == category.Id)">@category.Name</option>
+        }
+    </select>
+</div>
+
+@if (_error is not null)
+{
+    @* The toast disappears after a few seconds; this box stays so the user still sees what went wrong *@
+    <div class="alert alert-danger d-flex align-items-center justify-content-between" role="alert">
+        <span>@_error</span>
+        <button type="button" class="btn btn-outline-danger btn-sm" disabled="@_isLoading" @onclick="LoadProductsAsync">Thử lại</button>
+    </div>
+}
+
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th class="sortable" @onclick='() => SortAsync("name")'>Tên@(SortArrow("name"))</th>
+            <th>Danh mục</th>
+            <th class="sortable text-end" @onclick='() => SortAsync("price")'>Giá@(SortArrow("price"))</th>
+            <th class="text-end">Tồn kho</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (_isLoading)
+        {
+            <tr>
+                <td colspan="5">
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Đang tải…
+                </td>
+            </tr>
+        }
+        else if (_error is null && _products.Count == 0)
+        {
+            <tr><td colspan="5">Không có sản phẩm</td></tr>
+        }
+        else
+        {
+            @foreach (var p in _products)
+            {
+                <tr>
+                    <td>@p.Name</td>
+                    <td>@p.CategoryName</td>
+                    <td class="text-end">@p.SalePrice.ToString("N0", ViCulture) ₫</td>
+                    <td class="text-end">@p.Quantity @p.Unit</td>
+                    <td class="text-end">
+                        <AuthorizeView Roles="Admin,Kho">
+                            <a href="products/@p.Id/edit">Sửa</a>
+                            <button type="button" class="btn btn-link btn-sm text-danger" @onclick="() => AskDelete(p)">Xóa</button>
+                        </AuthorizeView>
+                    </td>
+                </tr>
+            }
+        }
+    </tbody>
+</table>
+
+@* Nothing is deleted until the user clicks "Xác nhận" in this dialog *@
+<ConfirmDialog @ref="_deleteDialog" Title="Xóa sản phẩm"
+               Message="@($"Bạn có chắc muốn xóa sản phẩm \"{_pendingDelete?.Name}\"? Thao tác này không thể hoàn tác.")"
+               OnConfirm="DeleteConfirmedAsync" OnCancel="CancelDelete" />
+
+<div class="pager">
+    <button type="button" class="btn btn-outline-secondary btn-sm" disabled="@(_isLoading || _page <= 1)" @onclick="PreviousPageAsync">Trước</button>
+    <span>Trang @_page / @TotalPages</span>
+    <button type="button" class="btn btn-outline-secondary btn-sm" disabled="@(_isLoading || _page >= TotalPages)" @onclick="NextPageAsync">Sau</button>
+    <label class="page-size">
+        Hiển thị
+        <select class="form-select form-select-sm" @onchange="OnPageSizeChanged">
+            @foreach (var size in PageSizes)
+            {
+                <option value="@size" selected="@(_pageSize == size)">@size</option>
+            }
+        </select>
+        dòng
+    </label>
+    <span class="total">Tổng: @_totalCount sản phẩm</span>
+</div>
+
+@code {
+    private const int DefaultPageSize = 10;
+    private const int SearchDebounceMs = 400;
+    private static readonly int[] PageSizes = { 10, 20, 50 };
+    private static readonly CultureInfo ViCulture = new("vi-VN");
+
+    private List<ProductItem> _products = new();
+    private List<CategoryItem> _categories = new();
+
+    // Current query state; every change reloads the page from the API
+    private string _search = string.Empty;
+    private int? _categoryId;
+    private string _sortBy = "name";
+    private bool _descending;
+    private int _page = 1;
+    private int _pageSize = DefaultPageSize;
+    private int _totalCount;
+
+    // Numeric parameters are strings on purpose: the binder throws on "page=abc", and we want to fall back to defaults instead
+    // The query string is the single source of truth for the list state, so reload and shared links keep the filters
+    [SupplyParameterFromQuery(Name = "search")] public string? SearchParam { get; set; }
+    [SupplyParameterFromQuery(Name = "categoryId")] public string? CategoryIdParam { get; set; }
+    [SupplyParameterFromQuery(Name = "sortBy")] public string? SortByParam { get; set; }
+    [SupplyParameterFromQuery(Name = "sortDir")] public string? SortDirParam { get; set; }
+    [SupplyParameterFromQuery(Name = "page")] public string? PageParam { get; set; }
+    [SupplyParameterFromQuery(Name = "pageSize")] public string? PageSizeParam { get; set; }
+
+    // Search text last written to the URL; lets us tell "URL changed by us" from "URL changed from outside"
+    private string _syncedSearch = string.Empty;
+    private bool _initialized;
+
+    private bool _isLoading = true;
+    private bool _redirecting;
+    private string? _error;
+
+    private CancellationTokenSource? _debounce;
+    private int _requestId;
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
+
+    // Runs on first load and whenever the query string changes (our own navigation, back/forward, a pasted link)
+    protected override async Task OnParametersSetAsync()
+    {
+        // Invalid or missing values fall back to defaults so a hand-edited URL cannot break the page
+        _sortBy = SortByParam?.ToLowerInvariant() == "price" ? "price" : "name";
+        _descending = SortDirParam?.ToLowerInvariant() == "desc";
+        _categoryId = int.TryParse(CategoryIdParam, out var categoryId) ? categoryId : null;
+        _pageSize = int.TryParse(PageSizeParam, out var size) && PageSizes.Contains(size) ? size : DefaultPageSize;
+        _page = int.TryParse(PageParam, out var page) ? Math.Max(1, page) : 1;
+
+        // Do not overwrite what the user is still typing when the URL only echoes an older keystroke
+        var urlSearch = SearchParam ?? string.Empty;
+        if (urlSearch != _syncedSearch)
+        {
+            _search = urlSearch;
+            _syncedSearch = urlSearch;
+        }
+
+        // Before the first render the token cannot be read (prerendering has no JS), see OnAfterRenderAsync
+        if (_initialized)
+        {
+            await LoadProductsAsync();
+        }
+    }
+
+    // Session storage needs JS interop, so load after the first interactive render instead of OnInitializedAsync
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // No token at all means the user has not logged in
+        if (string.IsNullOrEmpty(await Tokens.GetAsync()))
+        {
+            RedirectToLogin();
+            return;
+        }
+
+        await LoadCategoriesAsync();
+        _initialized = true;
+        await LoadProductsAsync();
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? string.Empty;
+
+        // Restart the timer on every keystroke; only the last one within 400 ms triggers a request
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+
+        try
+        {
+            await Task.Delay(SearchDebounceMs, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        _syncedSearch = _search;
+        NavigateToState(page: 1);
+    }
+
+    private void OnCategoryChanged(ChangeEventArgs e)
+    {
+        var categoryId = int.TryParse(e.Value?.ToString(), out var id) ? id : (int?)null;
+        NavigateToState(page: 1, categoryId: categoryId, changeCategory: true);
+    }
+
+    private void OnPageSizeChanged(ChangeEventArgs e)
+    {
+        var size = int.TryParse(e.Value?.ToString(), out var parsed) && PageSizes.Contains(parsed) ? parsed : DefaultPageSize;
+        NavigateToState(page: 1, pageSize: size);
+    }
+
+    private void SortAsync(string column)
+    {
+        // Same column again flips the direction; a new column starts ascending
+        var descending = _sortBy == column && !_descending;
+        NavigateToState(page: 1, sortBy: column, descending: descending);
+    }
+
+    private string SortArrow(string column) => _sortBy != column ? string.Empty : _descending ? " ▼" : " ▲";
+
+    private void PreviousPageAsync() => NavigateToState(page: _page - 1);
+
+    private void NextPageAsync() => NavigateToState(page: _page + 1);
+
+    // Writes the list state into the query string (defaults are omitted to keep links short).
+    // replace: true avoids one history entry per keystroke or click.
+    private void NavigateToState(int page, int? categoryId = null, bool changeCategory = false,
+        string? sortBy = null, bool? descending = null, int? pageSize = null)
+    {
+        var category = changeCategory ? categoryId : _categoryId;
+        var sort = sortBy ?? _sortBy;
+        var desc = descending ?? _descending;
+        var size = pageSize ?? _pageSize;
+        var search = _search.Trim();
+
+        var uri = Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["search"] = search.Length > 0 ? search : null,
+            ["categoryId"] = category,
+            ["sortBy"] = sort == "name" ? null : sort,
+            ["sortDir"] = desc ? "desc" : null,
+            ["page"] = page > 1 ? page : null,
+            ["pageSize"] = size == DefaultPageSize ? null : size
+        });
+
+        Navigation.NavigateTo(uri, replace: true);
+    }
+
+    // A failed category load is not fatal: the dropdown simply keeps only "all categories"
+    private async Task LoadCategoriesAsync() => _categories = await Catalog.GetCategoriesAsync() ?? new();
+    private async Task LoadProductsAsync()
+    {
+        // Responses can arrive out of order; only the newest request may update the table
+        var requestId = ++_requestId;
+        _isLoading = true;
+        _error = null;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient(ApiClient.Name);
+            var response = await client.GetAsync(BuildUrl());
+
+            if (requestId != _requestId)
+            {
+                return;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                // Token expired or rejected; AuthMessageHandler has already cleared it
+                RedirectToLogin();
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Không thể tải danh sách sản phẩm. Vui lòng thử lại sau";
+                Toast.ShowError(_error);
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<PagedResponse<ProductItem>>();
+            if (requestId != _requestId)
+            {
+                return;
+            }
+
+            _products = result?.Items.ToList() ?? new();
+            _totalCount = result?.TotalCount ?? 0;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            if (requestId == _requestId)
+            {
+                _error = "Không kết nối được máy chủ, vui lòng thử lại";
+                Toast.ShowError(_error);
+            }
+        }
+        finally
+        {
+            // Keep showing "loading" while navigating away, instead of flashing an empty list
+            if (requestId == _requestId)
+            {
+                _isLoading = _redirecting;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private string BuildUrl()
+    {
+        var url = $"api/products/search?page={_page}&pageSize={_pageSize}&sortBy={_sortBy}&sortDir={(_descending ? "desc" : "asc")}";
+
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            url += $"&search={Uri.EscapeDataString(_search.Trim())}";
+        }
+
+        if (_categoryId is not null)
+        {
+            url += $"&categoryId={_categoryId}";
+        }
+
+        return url;
+    }
+
+    private void RedirectToLogin()
+    {
+        _redirecting = true;
+        Navigation.NavigateTo("/login");
+    }
+
+    // The product the user clicked "Xóa" on; only used to word the dialog and to know what to delete on confirm
+    private ProductItem? _pendingDelete;
+    private ConfirmDialog? _deleteDialog;
+
+    private void AskDelete(ProductItem product)
+    {
+        _pendingDelete = product;
+        _deleteDialog?.Show();
+    }
+
+    private void CancelDelete() => _pendingDelete = null;
+
+    // Called by the dialog only after the user clicked "Xác nhận"
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_pendingDelete is not { } product)
+        {
+            return;
+        }
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient(ApiClient.Name);
+            var response = await client.DeleteAsync($"api/products/{product.Id}");
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                // Token expired; AuthMessageHandler has already cleared it
+                RedirectToLogin();
+                return;
+            }
+
+            if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound)
+            {
+                // 404 means somebody else already deleted it; either way it is gone, so refresh the list
+                Toast.ShowSuccess($"Đã xóa sản phẩm \"{product.Name}\"");
+
+                // Deleting the last row of a page would leave an empty page behind
+                if (_products.Count == 1 && _page > 1)
+                {
+                    NavigateToState(page: _page - 1);
+                }
+                else
+                {
+                    await LoadProductsAsync();
+                }
+
+                return;
+            }
+
+            Toast.ShowError(response.StatusCode switch
+            {
+                HttpStatusCode.Forbidden => "Bạn không có quyền xóa sản phẩm",
+                HttpStatusCode.Conflict => "Không thể xóa: sản phẩm đã phát sinh dữ liệu liên quan",
+                _ => "Không thể xóa sản phẩm, vui lòng thử lại"
+            });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            Toast.ShowError("Không kết nối được máy chủ, vui lòng thử lại");
+        }
+        finally
+        {
+            _pendingDelete = null;
+        }
+    }
+
+    public void Dispose()
+    {
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+    }
+}
+
+
+

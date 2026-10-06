@@ -1,0 +1,453 @@
+﻿@page "/pos"
+@* Pages/Sales/ would generate the namespace ...Pages.Sales, which clashes with the Sales page class *@
+@namespace SalesInventory.Web.Components.Pages.SalesForms
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@using System.Net
+@using SalesInventory.Web.Models
+@inject IHttpClientFactory HttpClientFactory
+@inject TokenStore Tokens
+@inject CatalogApi Catalog
+@inject ToastService Toast
+@inject NavigationManager Navigation
+
+<PageTitle>Quầy bán hàng - SalesInventory</PageTitle>
+
+<h1>Quầy bán hàng</h1>
+
+@if (_loadError is not null)
+{
+    <div class="alert alert-danger" role="alert">@_loadError</div>
+}
+else if (_isLoading)
+{
+    <p><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Đang tải…</p>
+}
+else
+{
+    var visible = GetVisibleProducts();
+
+    <div class="pos">
+        <section>
+            <input type="search" class="form-control mb-3" placeholder="Tìm theo tên hoặc mã SKU"
+                   value="@_search" @oninput="e => _search = e.Value?.ToString() ?? string.Empty" />
+
+            <div class="product-grid">
+                @foreach (var product in visible)
+                {
+                    <button type="button" class="product-card" disabled="@(product.Quantity <= 0 || _saving)"
+                            @onclick="() => AddToCart(product)">
+                        <span class="product-name">@product.Name</span>
+                        <span class="product-sku">@product.Sku</span>
+                        <span class="product-price">@Money(product.SalePrice)</span>
+                        <span class="product-stock @(product.Quantity <= 0 ? "out" : null)">
+                            @(product.Quantity <= 0 ? "Hết hàng" : $"Tồn: {product.Quantity} {product.Unit}")
+                        </span>
+                    </button>
+                }
+            </div>
+
+            @if (visible.Count == 0)
+            {
+                <p>Không tìm thấy sản phẩm</p>
+            }
+            else if (_matchCount > MaxShown)
+            {
+                <p class="text-muted mt-2">Hiển thị @MaxShown / @_matchCount sản phẩm. Gõ thêm để thu hẹp kết quả.</p>
+            }
+        </section>
+
+        <aside class="cart">
+            <h2 class="h5">Giỏ hàng</h2>
+
+            @if (_notice is not null)
+            {
+                <div class="alert alert-warning py-2" role="alert">@_notice</div>
+            }
+
+            <CartTable Lines="_cart" OnRemove="RemoveLine" OnQuantityChanged="SetQuantity" Disabled="_saving"
+                       ShowStock="true" PriceLabel="Đơn giá" EmptyText="Chưa có sản phẩm nào. Bấm vào sản phẩm bên trái để thêm." />
+
+            @if (_cart.Count > 0)
+            {
+                @if (_confirmClear)
+                {
+                    @* Inline confirmation: keeps the page free of JS interop *@
+                    <div class="alert alert-warning py-2" role="alert">
+                        Xóa hết @_cart.Count sản phẩm trong giỏ?
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-danger btn-sm" disabled="@_saving" @onclick="ClearCart">Xóa hết</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmClear = false">Giữ lại</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-outline-danger btn-sm mb-3" disabled="@_saving"
+                            @onclick="() => _confirmClear = true">Xóa hết giỏ</button>
+                }
+            }
+
+            <div class="mb-3">
+                <label class="form-label" for="customer">Khách hàng</label>
+                <select id="customer" class="form-select" @bind="_customerId" disabled="@_saving">
+                    <option value="0">-- Chọn khách hàng --</option>
+                    @foreach (var customer in _customers)
+                    {
+                        <option value="@customer.Id">@customer.Name@(string.IsNullOrEmpty(customer.Phone) ? null : $" ({customer.Phone})")</option>
+                    }
+                </select>
+                @if (_customersError is not null)
+                {
+                    <div class="form-text text-danger">@_customersError</div>
+                }
+
+                <button type="button" class="btn btn-link btn-sm px-0" @onclick="() => _showNewCustomer = !_showNewCustomer">
+                    @(_showNewCustomer ? "Ẩn form khách mới" : "+ Thêm khách hàng mới")
+                </button>
+            </div>
+
+            @if (_showNewCustomer)
+            {
+                <EditForm Model="_newCustomer" OnValidSubmit="AddCustomerAsync" class="new-customer">
+                    <DataAnnotationsValidator />
+                    <div class="mb-2">
+                        <InputText class="form-control form-control-sm" placeholder="Tên khách hàng" @bind-Value="_newCustomer.Name" />
+                        <ValidationMessage For="() => _newCustomer.Name" />
+                    </div>
+                    <div class="mb-2">
+                        <InputText class="form-control form-control-sm" placeholder="Số điện thoại (không bắt buộc)" @bind-Value="_newCustomer.Phone" />
+                    </div>
+                    <LoadingButton Class="btn btn-outline-primary btn-sm" Text="Lưu khách hàng" LoadingText="Đang lưu…"
+                                   IsLoading="_addingCustomer" Disabled="_saving" />
+                </EditForm>
+            }
+
+            @if (_error is not null)
+            {
+                <div class="alert alert-danger" role="alert">
+                    @_error.Message
+                    @if (_error.Details.Count > 0)
+                    {
+                        <ul class="mb-0">
+                            @foreach (var detail in _error.Details)
+                            {
+                                <li>@detail</li>
+                            }
+                        </ul>
+                    }
+                </div>
+            }
+
+            @if (_warnings.Count > 0)
+            {
+                <div class="alert alert-info py-2" role="status">
+                    @foreach (var warning in _warnings)
+                    {
+                        <div>@warning</div>
+                    }
+                </div>
+            }
+
+            @* The button only opens the dialog; the sale is sent after the user clicks "Xác nhận" *@
+            <LoadingButton Type="button" Class="btn btn-primary w-100" Text="Chốt đơn" LoadingText="Đang chốt đơn…"
+                           IsLoading="_saving" Disabled="@(!CanCheckout)" OnClick="@(() => AskCheckout())" />
+
+            <ConfirmDialog @ref="_checkoutDialog" Title="Chốt đơn" ConfirmClass="btn btn-primary"
+                           Message="@($"Xác nhận chốt đơn cho khách {SelectedCustomerName}?")"
+                           OnConfirm="CheckoutAsync" />
+            @if (_cart.Count > 0 && !CanCheckout && !_saving)
+            {
+                <div class="form-text">@CheckoutHint</div>
+            }
+        </aside>
+    </div>
+}
+
+@code {
+    // Rendering thousands of cards is slow; the search box narrows the list instead
+    private const int MaxShown = 60;
+    private static readonly CultureInfo ViCulture = new("vi-VN");
+
+    private List<ProductItem> _products = new();
+    private List<CustomerItem> _customers = new();
+    private readonly List<CartLineVm> _cart = new();
+
+    private string _search = string.Empty;
+    private int _matchCount;
+    private int _customerId;
+    private bool _showNewCustomer;
+    private bool _confirmClear;
+    private bool _addingCustomer;
+    private ConfirmDialog? _checkoutDialog;
+
+    private string SelectedCustomerName => _customers.FirstOrDefault(c => c.Id == _customerId)?.Name ?? "";
+    private readonly NewCustomerModel _newCustomer = new();
+
+    private bool _isLoading = true;
+    private bool _saving;
+    private string? _loadError;
+    private string? _customersError;
+    private string? _notice;
+    private ApiError? _error;
+    private List<string> _warnings = new();
+
+    // A sale is blocked while any line is invalid (zero quantity or more than the stock on hand)
+    private bool CanCheckout => !_saving && _cart.Count > 0 && _customerId > 0 && _cart.All(l => l.Problem is null);
+
+    private string CheckoutHint => _cart.Any(l => l.Problem is not null)
+        ? "Hãy sửa các dòng có cảnh báo màu đỏ trước khi chốt đơn"
+        : "Vui lòng chọn khách hàng";
+
+    // Session storage needs JS interop, so load after the first interactive render
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(await Tokens.GetAsync()))
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        try
+        {
+            var products = await Catalog.GetProductsAsync();
+            if (products is null)
+            {
+                _loadError = "Không thể tải danh sách sản phẩm. Vui lòng thử lại sau";
+                Toast.ShowError(_loadError);
+            }
+            else
+            {
+                _products = products.Where(p => p.IsActive).OrderBy(p => p.Name).ToList();
+
+                // Not fatal: some roles may not list customers, and the page still shows the products
+                var customers = await Catalog.GetCustomersAsync();
+                if (customers is null)
+                {
+                    _customersError = "Không tải được danh sách khách hàng (vai trò của bạn có thể không được xem khách hàng)";
+                }
+                else
+                {
+                    _customers = customers;
+                }
+            }
+        }
+        finally
+        {
+            // Always leave the loading state, even if something unexpected was thrown above
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private List<ProductItem> GetVisibleProducts()
+    {
+        var term = _search.Trim();
+        var matches = string.IsNullOrEmpty(term)
+            ? _products
+            : _products.Where(p => p.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                                   || p.Sku.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        _matchCount = matches.Count;
+        return matches.Take(MaxShown).ToList();
+    }
+
+    private void AddToCart(ProductItem product)
+    {
+        _notice = null;
+        _warnings.Clear();
+
+        var line = _cart.FirstOrDefault(l => l.ProductId == product.Id);
+        if (line is null)
+        {
+            _cart.Add(new CartLineVm
+            {
+                ProductId = product.Id,
+                ProductName = product.Name,
+                Sku = product.Sku,
+                Unit = product.Unit,
+                UnitPrice = product.SalePrice,
+                Quantity = 1,
+                Stock = product.Quantity
+            });
+            return;
+        }
+
+        // Already in the cart: raise the quantity instead of adding a second line, but never past the stock
+        if (line.Stock is int stock && line.Quantity + 1 > stock)
+        {
+            _notice = $"\"{product.Name}\" chỉ còn {stock} {line.Unit} trong kho";
+            return;
+        }
+
+        line.Quantity++;
+    }
+
+    // The cart table only reports what the user asked for; zero or over-stock shows on the line and blocks checkout
+    private void SetQuantity(QuantityChange change) => change.Line.Quantity = change.Quantity;
+
+    private void RemoveLine(CartLineVm line) => _cart.Remove(line);
+
+    private void ClearCart()
+    {
+        _cart.Clear();
+        _confirmClear = false;
+        _notice = null;
+    }
+
+    // Opens the confirmation; nothing is sent to the API until the dialog calls CheckoutAsync
+    private void AskCheckout()
+    {
+        if (CanCheckout)
+        {
+            _checkoutDialog?.Show();
+        }
+    }
+
+    private async Task CheckoutAsync()
+    {
+        // A second click can arrive before the browser has disabled the button; ignore it
+        if (_saving || !CanCheckout)
+        {
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        _notice = null;
+        _warnings.Clear();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient(ApiClient.Name);
+            var request = new SalesOrderRequest(
+                DateTime.UtcNow,
+                _customerId,
+                DiscountAmount: 0m,
+                Note: null,
+                _cart.Select(l => new SalesItemRequest(l.ProductId, l.Quantity, l.UnitPrice)).ToList());
+
+            var response = await client.PostAsJsonAsync("api/sales-orders", request);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                // Token expired; AuthMessageHandler has already cleared it
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = await ApiErrorReader.ReadAsync(response,
+                    notFound: "Không tìm thấy khách hàng hoặc sản phẩm. Hãy tải lại trang và thử lại",
+                    serverConflictMessage: true);
+                Toast.ShowError(_error.Message);
+
+                // Someone else may have sold the goods; refresh so the stock warnings are accurate
+                if (response.StatusCode == HttpStatusCode.Conflict)
+                {
+                    await RefreshStockAsync();
+                }
+
+                return;
+            }
+
+            var order = await response.Content.ReadFromJsonAsync<SalesOrderResult>();
+            Toast.ShowSuccess($"Đã tạo đơn #{order?.OrderNumber}");
+            _warnings = order?.Warnings ?? new List<string>();
+            ClearCart();
+            await RefreshStockAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            _error = new ApiError("Không kết nối được máy chủ, vui lòng thử lại", Array.Empty<string>());
+            Toast.ShowError(_error.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // Reloads stock levels (after a sale or a 409) and updates the cart lines to match
+    private async Task RefreshStockAsync()
+    {
+        var products = await Catalog.GetProductsAsync();
+        if (products is null)
+        {
+            return;
+        }
+
+        _products = products.Where(p => p.IsActive).OrderBy(p => p.Name).ToList();
+        foreach (var line in _cart)
+        {
+            line.Stock = _products.FirstOrDefault(p => p.Id == line.ProductId)?.Quantity ?? 0;
+        }
+    }
+
+    private async Task AddCustomerAsync()
+    {
+        if (_addingCustomer)
+        {
+            return;
+        }
+
+        _addingCustomer = true;
+        _error = null;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient(ApiClient.Name);
+            var response = await client.PostAsJsonAsync("api/customers",
+                new CustomerRequest(_newCustomer.Name.Trim(), string.IsNullOrWhiteSpace(_newCustomer.Phone) ? null : _newCustomer.Phone.Trim()));
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = await ApiErrorReader.ReadAsync(response, conflict: "Khách hàng đã tồn tại");
+                Toast.ShowError(_error.Message);
+                return;
+            }
+
+            var created = await response.Content.ReadFromJsonAsync<CustomerItem>();
+            if (created is not null)
+            {
+                _customers.Add(created);
+                _customerId = created.Id;
+                _customersError = null;
+                _newCustomer.Name = string.Empty;
+                _newCustomer.Phone = null;
+                _showNewCustomer = false;
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            _error = new ApiError("Không kết nối được máy chủ, vui lòng thử lại", Array.Empty<string>());
+            Toast.ShowError(_error.Message);
+        }
+        finally
+        {
+            _addingCustomer = false;
+        }
+    }
+
+    private static string Money(decimal value) => $"{value.ToString("N0", ViCulture)} ₫";
+
+    private class NewCustomerModel
+    {
+        [Required(ErrorMessage = "Vui lòng nhập tên khách hàng")]
+        public string Name { get; set; } = string.Empty;
+
+        public string? Phone { get; set; }
+    }
+}

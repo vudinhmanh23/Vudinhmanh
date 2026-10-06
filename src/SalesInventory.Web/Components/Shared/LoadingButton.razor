@@ -1,0 +1,37 @@
+@* A button that shows a spinner and disables itself while IsLoading is true, so users cannot submit twice.
+   Works as a submit button inside an EditForm (default) or as a plain button with OnClick. *@
+<button type="@Type" class="@Class" disabled="@(IsLoading || Disabled)" @onclick="OnClick">
+    @if (IsLoading)
+    {
+        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+    }
+    @(IsLoading ? LoadingText ?? Text : Text)
+</button>
+
+@code {
+    // Label shown when idle
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    // True while the parent is waiting for the API; shows the spinner and disables the button
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    // Label shown while loading; falls back to Text when not set
+    [Parameter]
+    public string? LoadingText { get; set; }
+
+    // Extra reason to disable the button (for example "cart is empty")
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public string Class { get; set; } = "btn btn-primary";
+
+    // "submit" triggers the surrounding EditForm; use "button" for plain click handlers
+    [Parameter]
+    public string Type { get; set; } = "submit";
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnClick { get; set; }
+}

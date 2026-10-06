@@ -1,0 +1,84 @@
+@implements IDisposable
+@inject ToastService Toast
+
+@* Top-right stack of toasts. Placed once in MainLayout; it survives page navigation, so a toast raised
+   just before NavigateTo is still visible on the next page. *@
+<div class="toast-stack" aria-live="polite">
+    @foreach (var toast in _toasts)
+    {
+        <div class="toast-box @(toast.Kind == ToastKind.Success ? "toast-success" : "toast-error") @(_fading.Contains(toast.Id) ? "toast-fading" : null)"
+             role="@(toast.Kind == ToastKind.Error ? "alert" : "status")">
+            <span class="toast-text">@toast.Text</span>
+            <button type="button" class="toast-close" aria-label="Đóng thông báo" @onclick="() => Close(toast)">×</button>
+        </div>
+    }
+</div>
+
+@code {
+    // Total lifetime of a toast; the last FadeMs of it is the fade-out animation (see ToastContainer.razor.css)
+    private const int VisibleMs = 3000;
+    private const int FadeMs = 400;
+
+    // Keeps the screen usable if many toasts arrive at once: the oldest one is dropped
+    private const int MaxVisible = 5;
+
+    private readonly List<ToastMessage> _toasts = new();
+
+    // Toasts currently playing the fade-out animation
+    private readonly HashSet<Guid> _fading = new();
+    private readonly CancellationTokenSource _disposed = new();
+
+    protected override void OnInitialized() => Toast.Shown += OnShown;
+
+    private void OnShown(ToastMessage toast) => _ = InvokeAsync(() => AddAsync(toast));
+
+    private async Task AddAsync(ToastMessage toast)
+    {
+        _toasts.Add(toast);
+        if (_toasts.Count > MaxVisible)
+        {
+            _toasts.RemoveAt(0);
+        }
+
+        StateHasChanged();
+
+        try
+        {
+            await Task.Delay(VisibleMs - FadeMs, _disposed.Token);
+
+            // Start the CSS fade-out, then remove the toast once the animation has finished
+            if (_toasts.Contains(toast))
+            {
+                _fading.Add(toast.Id);
+                StateHasChanged();
+            }
+
+            await Task.Delay(FadeMs, _disposed.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            // The circuit is closing; nothing left to hide
+            return;
+        }
+
+        // The user may have closed it already (or it was pushed out by newer toasts)
+        Close(toast);
+    }
+
+    private void Close(ToastMessage toast)
+    {
+        _fading.Remove(toast.Id);
+
+        if (_toasts.Remove(toast))
+        {
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        Toast.Shown -= OnShown;
+        _disposed.Cancel();
+        _disposed.Dispose();
+    }
+}

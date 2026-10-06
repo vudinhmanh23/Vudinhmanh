@@ -1,0 +1,329 @@
+﻿@page "/purchases/create"
+@* Pages/Purchases/ would generate the namespace ...Pages.Purchases, which clashes with the Purchases page class *@
+@namespace SalesInventory.Web.Components.Pages.PurchaseForms
+@using System.ComponentModel.DataAnnotations
+@using System.Net
+@using SalesInventory.Web.Models
+@inject IHttpClientFactory HttpClientFactory
+@inject TokenStore Tokens
+@inject CatalogApi Catalog
+@inject ToastService Toast
+@inject NavigationManager Navigation
+
+<PageTitle>Lập phiếu nhập - SalesInventory</PageTitle>
+
+<h1>Lập phiếu nhập hàng</h1>
+
+@if (_loadError is not null)
+{
+    <div class="alert alert-danger" role="alert">@_loadError</div>
+}
+else if (_isLoading)
+{
+    <p><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Đang tải…</p>
+}
+else if (_draftMessage is not null)
+{
+    @* The order exists on the server but was not approved; saving again would create a duplicate *@
+    <div class="alert alert-warning" role="alert">@_draftMessage</div>
+    <a class="btn btn-primary" href="purchases">Về danh sách phiếu nhập</a>
+}
+else
+{
+    <div class="purchase-card">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label" for="supplier">Nhà cung cấp</label>
+                <select id="supplier" class="form-select" @bind="_supplierId">
+                    <option value="0">-- Chọn nhà cung cấp --</option>
+                    @foreach (var supplier in _suppliers)
+                    {
+                        <option value="@supplier.Id">@supplier.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label" for="note">Ghi chú</label>
+                <input id="note" class="form-control" @bind="_note" maxlength="@NoteMaxLength" />
+            </div>
+        </div>
+    </div>
+
+    <div class="purchase-card">
+        <h2 class="h5">Thêm dòng</h2>
+        <EditForm Model="_line" OnValidSubmit="AddLine">
+            <DataAnnotationsValidator />
+            <div class="row align-items-start">
+                <div class="col-md-5 mb-3">
+                    <label class="form-label" for="line-product">Sản phẩm</label>
+                    <InputSelect id="line-product" class="form-select" @bind-Value="_line.ProductId">
+                        <option value="0">-- Chọn sản phẩm --</option>
+                        @foreach (var product in _products)
+                        {
+                            <option value="@product.Id">@product.Name (@product.Sku)</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => _line.ProductId" />
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label class="form-label" for="line-qty">Số lượng</label>
+                    <InputNumber id="line-qty" class="form-control" @bind-Value="_line.Quantity"
+                                 ParsingErrorMessage="Số lượng phải là số nguyên hợp lệ" />
+                    <ValidationMessage For="() => _line.Quantity" />
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label" for="line-cost">Giá nhập (₫)</label>
+                    <InputNumber id="line-cost" class="form-control" @bind-Value="_line.UnitCost"
+                                 ParsingErrorMessage="Giá nhập phải là số hợp lệ" />
+                    <ValidationMessage For="() => _line.UnitCost" />
+                </div>
+                <div class="col-md-2 mb-3 pt-md-4">
+                    <LoadingButton Class="btn btn-outline-primary mt-md-2" Text="Thêm vào phiếu" Disabled="_saving" />
+                </div>
+            </div>
+        </EditForm>
+
+        @if (_lineError is not null)
+        {
+            <div class="alert alert-warning py-2" role="alert">@_lineError</div>
+        }
+    </div>
+
+    <div class="purchase-card">
+        <h2 class="h5">Các dòng trong phiếu</h2>
+        <CartTable Lines="_items" OnRemove="RemoveLine" OnQuantityChanged="SetQuantity" Disabled="_saving"
+                   PriceLabel="Giá nhập" EmptyText="Chưa có dòng nào trong phiếu." />
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger" role="alert">
+            @_error.Message
+            @if (_error.Details.Count > 0)
+            {
+                <ul class="mb-0">
+                    @foreach (var detail in _error.Details)
+                    {
+                        <li>@detail</li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+
+    <div class="form-check mb-3">
+        <input id="approve" type="checkbox" class="form-check-input" @bind="_approveNow" />
+        <label class="form-check-label" for="approve">Duyệt phiếu ngay (cộng số lượng vào tồn kho)</label>
+    </div>
+
+    <LoadingButton Type="button" Text="Lưu phiếu nhập" LoadingText="Đang lưu…" IsLoading="_saving"
+                   Disabled="@(_items.Count == 0 || _items.Any(i => i.Problem is not null))"
+                   OnClick="@(() => SaveAsync())" />
+    <a class="btn btn-link" href="purchases">Hủy</a>
+}
+
+@code {
+    private const int NoteMaxLength = 500;
+
+    private List<SupplierItem> _suppliers = new();
+    private List<ProductItem> _products = new();
+    private readonly List<CartLineVm> _items = new();
+
+    private int _supplierId;
+    private string? _note;
+    private bool _approveNow = true;
+    private LineModel _line = new();
+
+    private bool _isLoading = true;
+    private bool _saving;
+    private string? _loadError;
+    private string? _lineError;
+    private string? _draftMessage;
+    private ApiError? _error;
+
+    // Session storage needs JS interop, so load after the first interactive render
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(await Tokens.GetAsync()))
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        try
+        {
+            var suppliers = await Catalog.GetActiveSuppliersAsync();
+            var products = await Catalog.GetProductsAsync();
+
+            if (suppliers is null || products is null)
+            {
+                _loadError = "Không thể tải nhà cung cấp hoặc sản phẩm. Vui lòng thử lại sau, hoặc kiểm tra quyền lập phiếu nhập của bạn";
+                Toast.ShowError(_loadError);
+            }
+            else
+            {
+                _suppliers = suppliers;
+                // Discontinued products cannot be bought
+                _products = products.Where(p => p.IsActive).OrderBy(p => p.Name).ToList();
+            }
+        }
+        finally
+        {
+            // Always leave the loading state, even if something unexpected was thrown above
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void AddLine()
+    {
+        _lineError = null;
+        var product = _products.First(p => p.Id == _line.ProductId);
+
+        // One line per product keeps the order readable; removing the old line is the way to change it
+        if (_items.Any(i => i.ProductId == product.Id))
+        {
+            _lineError = $"Sản phẩm \"{product.Name}\" đã có trong phiếu. Hãy xóa dòng cũ nếu muốn thay đổi";
+            return;
+        }
+
+        _items.Add(new CartLineVm
+        {
+            ProductId = product.Id,
+            ProductName = product.Name,
+            Sku = product.Sku,
+            Unit = product.Unit,
+            Quantity = _line.Quantity!.Value,
+            UnitPrice = _line.UnitCost!.Value
+        });
+
+        // A fresh model also clears the validation state of the add-line form
+        _line = new LineModel();
+    }
+
+    private Task RemoveLine(CartLineVm item)
+    {
+        _items.Remove(item);
+        return Task.CompletedTask;
+    }
+
+    // Quantity edits from the table; a zero or negative value is flagged on the line and blocks saving
+    private Task SetQuantity(QuantityChange change)
+    {
+        change.Line.Quantity = change.Quantity;
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveAsync()
+    {
+        // A second click can arrive before the browser has disabled the button; ignore it
+        if (_saving)
+        {
+            return;
+        }
+
+        _error = null;
+
+        if (_supplierId == 0)
+        {
+            _error = new ApiError("Vui lòng chọn nhà cung cấp", Array.Empty<string>());
+            return;
+        }
+
+        if (_note is { Length: > NoteMaxLength })
+        {
+            _error = new ApiError($"Ghi chú tối đa {NoteMaxLength} ký tự", Array.Empty<string>());
+            return;
+        }
+
+        _saving = true;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient(ApiClient.Name);
+            var request = new PurchaseOrderRequest(
+                DateTime.UtcNow,
+                _supplierId,
+                string.IsNullOrWhiteSpace(_note) ? null : _note.Trim(),
+                _items.Select(i => new PurchaseItemRequest(i.ProductId, i.Quantity, i.UnitPrice)).ToList());
+
+            var response = await client.PostAsJsonAsync("api/purchase-orders", request);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                // Token expired; AuthMessageHandler has already cleared it
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = await ApiErrorReader.ReadAsync(response,
+                    conflict: "Phiếu nhập xung đột với dữ liệu hiện có",
+                    notFound: "Không tìm thấy nhà cung cấp hoặc sản phẩm");
+                Toast.ShowError(_error.Message);
+                return;
+            }
+
+            var created = await response.Content.ReadFromJsonAsync<PurchaseOrderResult>();
+            if (created is null)
+            {
+                _error = new ApiError("Không thể lưu, vui lòng thử lại", Array.Empty<string>());
+                Toast.ShowError(_error.Message);
+                return;
+            }
+
+            await FinishAsync(client, created);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            _error = new ApiError("Không kết nối được máy chủ, vui lòng thử lại", Array.Empty<string>());
+            Toast.ShowError(_error.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // The order is created as a Draft; stock only changes when it is approved
+    private async Task FinishAsync(HttpClient client, PurchaseOrderResult created)
+    {
+        if (!_approveNow)
+        {
+            Toast.ShowSuccess($"Đã lưu phiếu nhập {created.Code} (chưa duyệt)");
+            Navigation.NavigateTo("/purchases");
+            return;
+        }
+
+        var approve = await client.PostAsync($"api/purchase-orders/{created.Id}/approve", content: null);
+        if (approve.IsSuccessStatusCode)
+        {
+            Toast.ShowSuccess($"Đã lưu và duyệt phiếu nhập {created.Code}");
+            Navigation.NavigateTo("/purchases");
+            return;
+        }
+
+        _draftMessage = $"Phiếu nhập {created.Code} đã được lưu ở trạng thái nháp nhưng chưa duyệt được, nên tồn kho chưa thay đổi. Bạn có thể duyệt lại từ danh sách phiếu nhập.";
+    }
+
+    // Validation for the add-line form; nullable numbers start empty instead of showing 0
+    private class LineModel
+    {
+        [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn sản phẩm")]
+        public int ProductId { get; set; }
+
+        [Required(ErrorMessage = "Vui lòng nhập số lượng")]
+        [Range(1, int.MaxValue, ErrorMessage = "Số lượng phải lớn hơn 0")]
+        public int? Quantity { get; set; }
+
+        [Required(ErrorMessage = "Vui lòng nhập giá nhập")]
+        [Range(0, double.MaxValue, ErrorMessage = "Giá nhập không được âm")]
+        public decimal? UnitCost { get; set; }
+    }
+}

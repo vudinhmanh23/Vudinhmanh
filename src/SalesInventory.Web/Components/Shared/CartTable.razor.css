@@ -1,0 +1,11 @@
+.qty-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.qty {
+    width: 3.75rem;
+    text-align: center;
+}

@@ -1,0 +1,7 @@
+﻿.form-card {
+    max-width: 40rem;
+    padding: var(--space);
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}

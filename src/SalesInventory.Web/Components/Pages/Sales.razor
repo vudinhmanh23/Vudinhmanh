@@ -1,0 +1,10 @@
+﻿@page "/sales"
+
+<PageTitle>Bán hàng - SalesInventory</PageTitle>
+
+<div class="page-header">
+    <h1>Bán hàng</h1>
+    <AuthorizeView Roles="Admin,BanHang,Kho">
+        <a class="btn btn-primary" href="pos">Mở quầy bán hàng</a>
+    </AuthorizeView>
+</div>

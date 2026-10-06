@@ -1,0 +1,62 @@
+.toast-stack {
+    position: fixed;
+    top: 4.5rem;
+    right: 1.5rem;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: min(24rem, calc(100vw - 3rem));
+}
+
+.toast-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: #fff;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Fades to transparent over the last 0.4 s of the toast's life (keep in sync with FadeMs in ToastContainer.razor) */
+.toast-fading {
+    animation: toast-fade-out 0.4s ease-in forwards;
+}
+
+@keyframes toast-fade-out {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0;
+    }
+}
+
+.toast-success {
+    background-color: #1e8e4e;
+}
+
+.toast-error {
+    background-color: #c0392b;
+}
+
+.toast-text {
+    flex: 1;
+}
+
+.toast-close {
+    padding: 0;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: inherit;
+    background: none;
+    border: none;
+    opacity: 0.8;
+    cursor: pointer;
+}
+
+    .toast-close:hover {
+        opacity: 1;
+    }

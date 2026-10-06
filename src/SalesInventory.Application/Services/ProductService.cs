@@ -151,6 +151,23 @@ public class ProductService : IProductService
         return true;
     }
 
+    public async Task<(bool Found, string? PreviousImageUrl)> SetProductImageAsync(int id, string? imageUrl)
+    {
+        var existing = await _productRepository.GetByIdAsync(id);
+        if (existing is null)
+        {
+            return (false, null);
+        }
+
+        var previous = existing.ImageUrl;
+        existing.ImageUrl = imageUrl;
+
+        _productRepository.Update(existing);
+        await _productRepository.SaveChangesAsync();
+
+        return (true, previous);
+    }
+
     // Friendly pre-check; the unique indexes on Products.Sku / Products.Barcode remain the final guard against races
     private async Task EnsureCodesAreUniqueAsync(Product product, int? excludeId)
     {

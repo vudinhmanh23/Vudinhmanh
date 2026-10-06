@@ -8,6 +8,7 @@
 @inject TokenStore Tokens
 @inject NavigationManager Navigation
 @inject CatalogApi Catalog
+@inject IConfiguration Configuration
 
 <PageTitle>Sản phẩm - SalesInventory</PageTitle>
 
@@ -43,6 +44,7 @@
 <table class="table table-striped align-middle">
     <thead>
         <tr>
+            <th></th>
             <th class="sortable" @onclick='() => SortAsync("name")'>Tên@(SortArrow("name"))</th>
             <th>Danh mục</th>
             <th class="sortable text-end" @onclick='() => SortAsync("price")'>Giá@(SortArrow("price"))</th>
@@ -54,20 +56,21 @@
         @if (_isLoading)
         {
             <tr>
-                <td colspan="5">
+                <td colspan="6">
                     <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Đang tải…
                 </td>
             </tr>
         }
         else if (_error is null && _products.Count == 0)
         {
-            <tr><td colspan="5">Không có sản phẩm</td></tr>
+            <tr><td colspan="6">Không có sản phẩm</td></tr>
         }
         else
         {
             @foreach (var p in _products)
             {
                 <tr>
+                    <td><img class="product-thumb" src="@ImageSrc(p)" alt="@p.Name" loading="lazy" /></td>
                     <td>@p.Name</td>
                     <td>@p.CategoryName</td>
                     <td class="text-end">@p.SalePrice.ToString("N0", ViCulture) ₫</td>
@@ -143,6 +146,15 @@
 
     private CancellationTokenSource? _debounce;
     private int _requestId;
+
+    // Uploaded images are static files of the API, so the stored relative URL is resolved against ApiBaseUrl;
+    // products without an image show a bundled placeholder so every row has a picture
+    private const string PlaceholderImage = "images/product-placeholder.svg";
+
+    private string ImageSrc(ProductItem product) =>
+        string.IsNullOrWhiteSpace(product.ImageUrl)
+            ? PlaceholderImage
+            : $"{Configuration["ApiBaseUrl"]!.TrimEnd('/')}{product.ImageUrl}";
 
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
 

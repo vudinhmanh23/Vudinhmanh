@@ -493,3 +493,7 @@ appsettings.Local.json
 *.secrets.json
 secrets.json
 secrets-test.env
+
+# Uploaded product images (keep the folder, ignore the files)
+src/SalesInventory.Api/wwwroot/uploads/products/*
+!src/SalesInventory.Api/wwwroot/uploads/products/.gitkeep

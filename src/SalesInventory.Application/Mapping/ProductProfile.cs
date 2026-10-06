@@ -22,6 +22,7 @@ public class ProductProfile : Profile
             .ForMember(p => p.Id, o => o.Ignore())
             .ForMember(p => p.CreatedAt, o => o.Ignore())
             .ForMember(p => p.SupplierId, o => o.Ignore())
+            .ForMember(p => p.ImageUrl, o => o.Ignore())
             .ForMember(p => p.Category, o => o.Ignore())
             .ForMember(p => p.Supplier, o => o.Ignore());
         CreateMap<UpdateProductDto, Product>()
@@ -30,6 +31,7 @@ public class ProductProfile : Profile
             .ForMember(p => p.Id, o => o.Ignore())
             .ForMember(p => p.CreatedAt, o => o.Ignore())
             .ForMember(p => p.SupplierId, o => o.Ignore())
+            .ForMember(p => p.ImageUrl, o => o.Ignore())
             .ForMember(p => p.Category, o => o.Ignore())
             .ForMember(p => p.Supplier, o => o.Ignore());
     }

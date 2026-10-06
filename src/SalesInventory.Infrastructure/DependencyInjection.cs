@@ -6,6 +6,7 @@ using SalesInventory.Application.Interfaces;
 using SalesInventory.Infrastructure.Identity;
 using SalesInventory.Infrastructure.Persistence;
 using SalesInventory.Infrastructure.Repositories;
+using SalesInventory.Infrastructure.Storage;
 
 namespace SalesInventory.Infrastructure;
 
@@ -40,6 +41,16 @@ public static class DependencyInjection
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        // Product images from the internet: SSRF-safe downloader plus the Open Food Facts barcode lookup
+        services.AddSingleton<IRemoteImageDownloader, SafeImageDownloader>();
+        services.AddHttpClient<IProductImageLookup, OpenFoodFactsImageLookup>(client =>
+        {
+            client.BaseAddress = new Uri("https://world.openfoodfacts.org/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+            // Open Food Facts asks API clients to identify themselves
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SalesInventory/1.0");
+        });
 
         return services;
     }

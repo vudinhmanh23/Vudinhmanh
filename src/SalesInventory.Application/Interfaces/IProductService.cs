@@ -25,4 +25,8 @@ public interface IProductService
     Task<Product> CreateProductAsync(Product product);
     Task<bool> UpdateProductAsync(int id, Product product);
     Task<bool> DeleteProductAsync(int id);
+
+    // Sets (or clears, with null) the product image URL. Found is false when the product doesn't exist;
+    // PreviousImageUrl lets the caller delete the replaced file.
+    Task<(bool Found, string? PreviousImageUrl)> SetProductImageAsync(int id, string? imageUrl);
 }

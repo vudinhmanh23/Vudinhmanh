@@ -48,6 +48,10 @@ public class Product
     [Timestamp]
     public byte[]? RowVersion { get; set; }
 
+    // Relative URL of the product image served as a static file, e.g. "/uploads/products/<guid>.png"
+    [MaxLength(500)]
+    public string? ImageUrl { get; set; }
+
     public int CategoryId { get; set; }
     public Category? Category { get; set; }
 

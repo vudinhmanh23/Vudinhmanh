@@ -10,4 +10,5 @@ public record ProductItem(
     int Quantity,
     bool IsActive,
     string? CategoryName,
-    string? SupplierName);
+    string? SupplierName,
+    string? ImageUrl = null);

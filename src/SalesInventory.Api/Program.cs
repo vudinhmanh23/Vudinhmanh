@@ -8,7 +8,9 @@ using SalesInventory.Infrastructure.Identity;
 using SalesInventory.Application;
 using SalesInventory.Api.Middleware;
 using SalesInventory.Api.Swagger;
+using SalesInventory.Application.Interfaces;
 using SalesInventory.Infrastructure;
+using SalesInventory.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +19,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<SalesInventory.Application.InventorySettings>(builder.Configuration.GetSection("Inventory"));
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Product images are saved under wwwroot/uploads/products and served as static files
+var webRootPath = builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
+builder.Services.AddSingleton<IFileStorage>(new LocalFileStorage(webRootPath));
 
 // JWT bearer validation reads the same "Jwt" section that Infrastructure binds for token generation
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
@@ -98,6 +104,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Serves wwwroot (including uploaded product images under /uploads/products)
+app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();

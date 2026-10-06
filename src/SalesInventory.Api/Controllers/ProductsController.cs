@@ -24,7 +24,13 @@ public class ProductsController : ControllerBase
     // Upper bound for the list page size, same as the customers list
     private const int MaxPageSize = 100;
 
+    // Image upload limits: 2 MB file; the request cap leaves room for multipart overhead
+    private const long MaxImageRequestBytes = ProductImageRules.MaxBytes + 1024 * 1024;
+
     private readonly IProductService _productService;
+    private readonly IFileStorage _fileStorage;
+    private readonly IRemoteImageDownloader _imageDownloader;
+    private readonly IProductImageLookup _imageLookup;
     private readonly ICategoryService _categoryService;
     private readonly ISupplierService _supplierService;
     private readonly IStockMovementService _stockMovementService;
@@ -34,6 +40,9 @@ public class ProductsController : ControllerBase
 
     public ProductsController(
         IProductService productService,
+        IFileStorage fileStorage,
+        IRemoteImageDownloader imageDownloader,
+        IProductImageLookup imageLookup,
         ICategoryService categoryService,
         ISupplierService supplierService,
         IStockMovementService stockMovementService,
@@ -46,6 +55,9 @@ public class ProductsController : ControllerBase
         _stockMovementService = stockMovementService;
         _mapper = mapper;
         _productService = productService;
+        _fileStorage = fileStorage;
+        _imageDownloader = imageDownloader;
+        _imageLookup = imageLookup;
         _categoryService = categoryService;
         _supplierService = supplierService;
     }
@@ -325,6 +337,184 @@ public class ProductsController : ControllerBase
             // Business validation failure from the service layer
             return Problem(title: "Business rule violated", detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
         }
+    }
+
+    /// <summary>
+    /// Uploads (or replaces) the product image. Accepts jpg/jpeg/png/webp up to 2 MB; the file is stored under a
+    /// server-generated name and the original file name is ignored. Returns 400 for any rejected file (nothing is written).
+    /// </summary>
+    [HttpPost("{id}/image")]
+    [Authorize(Policy = AuthPolicies.CanManageInventory)]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaxImageRequestBytes)]
+    public async Task<ActionResult<ProductImageDto>> UploadImage(int id, IFormFile file, CancellationToken cancellationToken)
+    {
+        if (await _productService.GetProductAsync(id) is null)
+        {
+            return NotFound();
+        }
+
+        var error = await ValidateImageAsync(file, cancellationToken);
+        if (error is not null)
+        {
+            return InvalidImage(error);
+        }
+
+        // Extension was validated against the whitelist above; the rest of the client's file name is never used
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+        await using var stream = file.OpenReadStream();
+        return await AttachImageAsync(id, stream, extension, cancellationToken);
+    }
+
+    /// <summary>
+    /// Downloads the image at an https URL and sets it as the product image. The server refuses internal addresses
+    /// (localhost, private networks, cloud metadata), and the downloaded bytes go through the same checks as an upload.
+    /// </summary>
+    [HttpPost("{id}/image-from-url")]
+    [Authorize(Policy = AuthPolicies.CanManageInventory)]
+    public async Task<ActionResult<ProductImageDto>> SetImageFromUrl(int id, ImageFromUrlDto dto, CancellationToken cancellationToken)
+    {
+        if (await _productService.GetProductAsync(id) is null)
+        {
+            return NotFound();
+        }
+
+        if (!Uri.TryCreate(dto.Url.Trim(), UriKind.Absolute, out var url))
+        {
+            return InvalidImage("Địa chỉ ảnh không hợp lệ.");
+        }
+
+        return await AttachRemoteImageAsync(id, url, cancellationToken);
+    }
+
+    /// <summary>
+    /// Finds the product's picture on Open Food Facts by its barcode and sets it as the product image.
+    /// 400 when the product has no barcode, 404 when the barcode has no picture online.
+    /// </summary>
+    [HttpPost("{id}/image-from-barcode")]
+    [Authorize(Policy = AuthPolicies.CanManageInventory)]
+    public async Task<ActionResult<ProductImageDto>> SetImageFromBarcode(int id, CancellationToken cancellationToken)
+    {
+        var product = await _productService.GetProductAsync(id);
+        if (product is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(product.Barcode))
+        {
+            return InvalidImage("Sản phẩm chưa có barcode nên không thể tìm ảnh tự động.");
+        }
+
+        Uri? url;
+        try
+        {
+            url = await _imageLookup.FindByBarcodeAsync(product.Barcode, cancellationToken);
+        }
+        catch (ImageDownloadException ex)
+        {
+            return ImageDownloadProblem(ex);
+        }
+
+        if (url is null)
+        {
+            return Problem(title: "Không tìm thấy ảnh", detail: $"Không có ảnh nào cho barcode {product.Barcode} trên Open Food Facts.", statusCode: StatusCodes.Status404NotFound);
+        }
+
+        // The URL comes from a third party, so it is downloaded through the same SSRF-safe path as a user-supplied one
+        return await AttachRemoteImageAsync(id, url, cancellationToken);
+    }
+
+    private async Task<ActionResult<ProductImageDto>> AttachRemoteImageAsync(int id, Uri url, CancellationToken cancellationToken)
+    {
+        DownloadedImage image;
+        try
+        {
+            image = await _imageDownloader.DownloadAsync(url, ProductImageRules.MaxBytes, cancellationToken);
+        }
+        catch (ImageDownloadException ex)
+        {
+            return ImageDownloadProblem(ex);
+        }
+
+        // The extension comes from the downloaded bytes themselves, never from the URL or the server's headers
+        var extension = ProductImageRules.DetectExtension(image.Content.AsSpan(0, Math.Min(image.Content.Length, ProductImageRules.SignatureLength)));
+        if (extension is null)
+        {
+            return InvalidImage("Nội dung tải về không phải là ảnh JPEG, PNG hoặc WebP hợp lệ.");
+        }
+
+        using var stream = new MemoryStream(image.Content);
+        return await AttachImageAsync(id, stream, extension, cancellationToken);
+    }
+
+    // Saves an already validated image, points the product at it and removes the file it replaces
+    private async Task<ActionResult<ProductImageDto>> AttachImageAsync(int id, Stream content, string extension, CancellationToken cancellationToken)
+    {
+        var imageUrl = await _fileStorage.SaveProductImageAsync(content, extension, cancellationToken);
+
+        (bool Found, string? PreviousImageUrl) result;
+        try
+        {
+            result = await _productService.SetProductImageAsync(id, imageUrl);
+        }
+        catch
+        {
+            // Don't leave an orphan file behind when the database update fails
+            _fileStorage.DeleteProductImage(imageUrl);
+            throw;
+        }
+
+        if (!result.Found)
+        {
+            // Product was deleted between the check and the update
+            _fileStorage.DeleteProductImage(imageUrl);
+            return NotFound();
+        }
+
+        _fileStorage.DeleteProductImage(result.PreviousImageUrl);
+        return Ok(new ProductImageDto { ImageUrl = imageUrl });
+    }
+
+    private ActionResult InvalidImage(string detail) =>
+        Problem(title: "Ảnh không hợp lệ", detail: detail, statusCode: StatusCodes.Status400BadRequest);
+
+    // 502 when the remote side failed, 400 when the request itself was unacceptable (e.g. a blocked address)
+    private ActionResult ImageDownloadProblem(ImageDownloadException ex) =>
+        ex.IsUpstreamError
+            ? Problem(title: "Không tải được ảnh", detail: ex.Message, statusCode: StatusCodes.Status502BadGateway)
+            : InvalidImage(ex.Message);
+
+    // Returns an error message, or null when the upload is acceptable. Content type and extension are client-declared,
+    // so the leading bytes are checked too (a renamed .txt must not pass).
+    private static async Task<string?> ValidateImageAsync(IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return "Vui lòng chọn một file ảnh (trường 'file').";
+        }
+
+        if (file.Length > ProductImageRules.MaxBytes)
+        {
+            return "Ảnh vượt quá dung lượng tối đa 2 MB.";
+        }
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!ProductImageRules.IsAllowedExtension(extension) || !ProductImageRules.IsAllowedContentType(file.ContentType))
+        {
+            return "Chỉ chấp nhận ảnh JPEG, PNG hoặc WebP (.jpg, .jpeg, .png, .webp).";
+        }
+
+        var header = new byte[ProductImageRules.SignatureLength];
+        await using var stream = file.OpenReadStream();
+        var read = await stream.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, cancellationToken);
+        if (!ProductImageRules.ContentMatchesExtension(header.AsSpan(0, read), extension))
+        {
+            return "Nội dung file không phải là ảnh hợp lệ.";
+        }
+
+        return null;
     }
 
     /// <summary>Deletes a product.</summary>

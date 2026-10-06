@@ -1,0 +1,17 @@
+using SalesInventory.Domain.Entities;
+
+namespace SalesInventory.Application.Interfaces;
+
+// Whole-catalogue numbers for the dashboard; money is decimal end to end
+public record InventorySummary(int TotalProducts, int ActiveProducts, int LowStockProducts, decimal InventoryValue);
+
+public interface IProductRepository : IRepository<Product>
+{
+    // Products at or below their reorder level (reorder level > 0), biggest shortage first.
+    // Inactive products are left out unless includeInactive is true.
+    // Filtering and ordering happen in SQL; the returned entities are not tracked (read-only).
+    Task<IReadOnlyList<Product>> GetBelowReorderLevelAsync(bool includeInactive = false);
+
+    // Counts and SUM(StockQuantity * PurchasePrice) computed by the database in a single read-only pass
+    Task<InventorySummary> GetInventorySummaryAsync();
+}

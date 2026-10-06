@@ -151,6 +151,64 @@ public sealed class SalesOrderConcurrencyTests : IDisposable
         Assert.Equal(3, (await verify.Products.AsNoTracking().SingleAsync(p => p.Id == 1)).StockQuantity);
     }
 
+    // The InMemory provider would accept any LINQ; running on SQL Server proves the filter and ordering translate to SQL
+    [LocalDbFact]
+    public async Task LowStockQuery_RunsAsSqlOnSqlServer_WithFilterAndShortageOrdering()
+    {
+        await using (var setup = NewContext())
+        {
+            await setup.Database.EnsureCreatedAsync();
+            // Seeded stock: product 1 = 50, 2 = 100, 3 = 500, 4 = 200
+            await setup.Products.Where(p => p.Id == 1).ExecuteUpdateAsync(s => s.SetProperty(p => p.ReorderLevel, 60));   // shortage 10
+            await setup.Products.Where(p => p.Id == 2).ExecuteUpdateAsync(s => s.SetProperty(p => p.ReorderLevel, 120));  // shortage 20
+            await setup.Products.Where(p => p.Id == 3).ExecuteUpdateAsync(s => s.SetProperty(p => p.ReorderLevel, 0));    // not tracked
+            await setup.Products.Where(p => p.Id == 4).ExecuteUpdateAsync(s => s.SetProperty(p => p.ReorderLevel, 300).SetProperty(p => p.IsActive, false));
+        }
+
+        await using var db = NewContext();
+        var result = await new ProductRepository(db).GetBelowReorderLevelAsync();
+
+        Assert.Equal(new[] { 2, 1 }, result.Select(p => p.Id));
+    }
+
+    // Cross-checks the repository's aggregates against a hand-written SQL statement and against decimal math in C#
+    [LocalDbFact]
+    public async Task InventorySummary_MatchesAReferenceSqlQuery_ToTheLastCent()
+    {
+        await using (var setup = NewContext())
+        {
+            await setup.Database.EnsureCreatedAsync();
+            // Awkward cents on purpose: binary floating point would drift here, decimal must not
+            await setup.Products.Where(p => p.Id == 1).ExecuteUpdateAsync(s => s
+                .SetProperty(p => p.PurchasePrice, 12345.67m).SetProperty(p => p.ReorderLevel, 60));            // stock 50, low
+            await setup.Products.Where(p => p.Id == 2).ExecuteUpdateAsync(s => s.SetProperty(p => p.PurchasePrice, 0.01m)); // stock 100
+            await setup.Products.Where(p => p.Id == 3).ExecuteUpdateAsync(s => s
+                .SetProperty(p => p.PurchasePrice, 0.07m).SetProperty(p => p.IsActive, false));                 // stock 500, inactive
+        }
+
+        await using var db = NewContext();
+        var summary = await new ProductRepository(db).GetInventorySummaryAsync();
+
+        // Reference: plain SQL written independently of the LINQ in the repository
+        var sqlValue = await db.Database.SqlQueryRaw<decimal>("SELECT ISNULL(SUM(StockQuantity * PurchasePrice), 0) AS Value FROM Products").SingleAsync();
+        var sqlTotal = await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM Products").SingleAsync();
+        var sqlActive = await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM Products WHERE IsActive = 1").SingleAsync();
+        var sqlLow = await db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) AS Value FROM Products WHERE IsActive = 1 AND ReorderLevel > 0 AND StockQuantity <= ReorderLevel").SingleAsync();
+
+        Assert.Equal(sqlValue, summary.InventoryValue);
+        Assert.Equal(sqlTotal, summary.TotalProducts);
+        Assert.Equal(sqlActive, summary.ActiveProducts);
+        Assert.Equal(sqlLow, summary.LowStockProducts);
+
+        // And against exact decimal arithmetic: 50 x 12345.67 + 100 x 0.01 + 500 x 0.07
+        Assert.Equal(50 * 12345.67m + 100 * 0.01m + 500 * 0.07m, summary.InventoryValue);
+        Assert.Equal(617_319.50m, summary.InventoryValue);
+        Assert.Equal(8, summary.TotalProducts);
+        Assert.Equal(7, summary.ActiveProducts);
+        Assert.Equal(1, summary.LowStockProducts);
+    }
+
     [LocalDbFact]
     public async Task DatabaseCheckConstraint_RejectsNegativeStock_EvenWhenAppCodeIsBypassed()
     {

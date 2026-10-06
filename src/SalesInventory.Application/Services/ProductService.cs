@@ -1,6 +1,5 @@
 using SalesInventory.Domain.Entities;
 using SalesInventory.Application.Interfaces;
-using Microsoft.Extensions.Options;
 
 namespace SalesInventory.Application.Services;
 
@@ -8,13 +7,13 @@ public class ProductService : IProductService
 {
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Category> _categoryRepository;
-    private readonly InventorySettings _inventorySettings;
+    private readonly IProductRepository _productQueries;
 
-    public ProductService(IRepository<Product> productRepository, IRepository<Category> categoryRepository, IOptions<InventorySettings> inventorySettings)
+    public ProductService(IRepository<Product> productRepository, IRepository<Category> categoryRepository, IProductRepository productQueries)
     {
         _productRepository = productRepository;
         _categoryRepository = categoryRepository;
-        _inventorySettings = inventorySettings.Value;
+        _productQueries = productQueries;
     }
 
     public async Task<IEnumerable<Product>> GetProductsAsync()
@@ -39,13 +38,14 @@ public class ProductService : IProductService
         return products.Where(p => !p.IsActive);
     }
 
-    public async Task<IEnumerable<Product>> GetLowStockProductsAsync()
+    public async Task<IReadOnlyList<Product>> GetLowStockProductsAsync(bool includeInactive = false)
     {
-        var products = await _productRepository.GetAllAsync();
-        return products
-            .Where(p => p.StockQuantity < _inventorySettings.LowStockThreshold)
-            .OrderBy(p => p.StockQuantity)
-            .ThenBy(p => p.Id);
+        return await _productQueries.GetBelowReorderLevelAsync(includeInactive);
+    }
+
+    public async Task<InventorySummary> GetInventorySummaryAsync()
+    {
+        return await _productQueries.GetInventorySummaryAsync();
     }
 
     public async Task<bool> IsSkuTakenAsync(string sku, int? excludeProductId)

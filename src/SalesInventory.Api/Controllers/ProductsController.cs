@@ -103,18 +103,17 @@ public class ProductsController : ControllerBase
         return Ok(products.Select(p => ToDto(p, categoryNamesById.GetValueOrDefault(p.CategoryId), SupplierName(p, supplierNamesById))));
     }
 
-    /// <summary>Gets products whose stock is below the configured Inventory:LowStockThreshold, lowest first.</summary>
+    /// <summary>
+    /// Low-stock report: active products with ReorderLevel &gt; 0 whose stock is at or below it,
+    /// with Shortage = ReorderLevel - StockQuantity, biggest shortage first. Read-only.
+    /// Discontinued (inactive) products are left out unless <c>includeInactive=true</c> (useful for a stocktake).
+    /// </summary>
     [HttpGet("low-stock")]
-    public async Task<ActionResult<IEnumerable<ProductDto>>> GetLowStockProducts()
+    public async Task<ActionResult<IEnumerable<LowStockItemDto>>> GetLowStockProducts([FromQuery] bool includeInactive = false)
     {
-        var products = await _productService.GetLowStockProductsAsync();
-        var categories = await _categoryService.GetCategoriesAsync();
-        var categoryNamesById = categories.ToDictionary(c => c.Id, c => c.Name);
+        var products = await _productService.GetLowStockProductsAsync(includeInactive);
 
-        var suppliers = await _supplierService.GetSuppliersAsync();
-        var supplierNamesById = suppliers.ToDictionary(s => s.Id, s => s.Name);
-
-        return Ok(products.Select(p => ToDto(p, categoryNamesById.GetValueOrDefault(p.CategoryId), SupplierName(p, supplierNamesById))));
+        return Ok(products.Select(LowStockItemDto.From));
     }
 
     /// <summary>Gets a single product by id.</summary>

@@ -10,8 +10,11 @@ public interface IProductService
     Task<Product?> GetProductBySkuAsync(string sku);
     Task<IEnumerable<Product>> GetInactiveProductsAsync();
 
-    // Products whose stock is below the configured Inventory:LowStockThreshold, lowest stock first
-    Task<IEnumerable<Product>> GetLowStockProductsAsync();
+    // Products with ReorderLevel > 0 and StockQuantity <= ReorderLevel, biggest shortage first.
+    // Only active products unless includeInactive is true (e.g. for a stocktake).
+    Task<IReadOnlyList<Product>> GetLowStockProductsAsync(bool includeInactive = false);
+
+    Task<InventorySummary> GetInventorySummaryAsync();
     Task<bool> IsSkuTakenAsync(string sku, int? excludeProductId);
     Task<bool> IsBarcodeTakenAsync(string barcode, int? excludeProductId);
     Task<IEnumerable<Product>> GetProductsByCategoryIdAsync(int categoryId);

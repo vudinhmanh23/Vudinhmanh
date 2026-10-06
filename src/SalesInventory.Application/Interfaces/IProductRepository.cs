@@ -14,4 +14,9 @@ public interface IProductRepository : IRepository<Product>
 
     // Counts and SUM(StockQuantity * PurchasePrice) computed by the database in a single read-only pass
     Task<InventorySummary> GetInventorySummaryAsync();
+
+    // One page of products matching the optional name search and category filter, plus the total match count.
+    // sortBy is "name" or "price" (sale price); filtering, ordering and paging all happen in SQL (read-only).
+    Task<(IReadOnlyList<Product> Items, int TotalCount)> SearchAsync(
+        string? search, int? categoryId, string sortBy, bool descending, int page, int pageSize);
 }

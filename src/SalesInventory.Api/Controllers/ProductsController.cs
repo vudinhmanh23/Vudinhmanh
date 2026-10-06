@@ -21,6 +21,9 @@ public class ProductsController : ControllerBase
     // CreateProductDto has no SupplierId (per API contract), so new products fall back to the seeded default supplier
     private const int DefaultSupplierId = 1;
 
+    // Upper bound for the list page size, same as the customers list
+    private const int MaxPageSize = 100;
+
     private readonly IProductService _productService;
     private readonly ICategoryService _categoryService;
     private readonly ISupplierService _supplierService;
@@ -59,6 +62,50 @@ public class ProductsController : ControllerBase
         var supplierNamesById = suppliers.ToDictionary(s => s.Id, s => s.Name);
 
         return Ok(products.Select(p => ToDto(p, categoryNamesById.GetValueOrDefault(p.CategoryId), SupplierName(p, supplierNamesById))));
+    }
+
+    /// <summary>
+    /// Gets one page of products with optional name search, category filter and sorting (all done in the database).
+    /// sortBy: name | price; sortDir: asc | desc.
+    /// </summary>
+    [HttpGet("search")]
+    public async Task<ActionResult<PagedResult<ProductDto>>> SearchProducts(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] string sortBy = "name",
+        [FromQuery] string sortDir = "asc")
+    {
+        if (page < 1 || pageSize < 1 || pageSize > MaxPageSize)
+        {
+            ModelState.AddModelError(nameof(page), $"page must be >= 1 and pageSize must be between 1 and {MaxPageSize}.");
+            return ValidationProblem(ModelState);
+        }
+
+        var sortKey = sortBy.ToLowerInvariant();
+        var dirKey = sortDir.ToLowerInvariant();
+        if (sortKey is not ("name" or "price") || dirKey is not ("asc" or "desc"))
+        {
+            ModelState.AddModelError(nameof(sortBy), "sortBy must be 'name' or 'price' and sortDir must be 'asc' or 'desc'.");
+            return ValidationProblem(ModelState);
+        }
+
+        var (products, totalCount) = await _productService.SearchProductsAsync(
+            search, categoryId, sortKey, dirKey == "desc", page, pageSize);
+
+        var categories = await _categoryService.GetCategoriesAsync();
+        var categoryNamesById = categories.ToDictionary(c => c.Id, c => c.Name);
+        var suppliers = await _supplierService.GetSuppliersAsync();
+        var supplierNamesById = suppliers.ToDictionary(s => s.Id, s => s.Name);
+
+        return Ok(new PagedResult<ProductDto>
+        {
+            Items = products.Select(p => ToDto(p, categoryNamesById.GetValueOrDefault(p.CategoryId), SupplierName(p, supplierNamesById))).ToList(),
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        });
     }
 
     /// <summary>Gets all products belonging to a given category.</summary>
@@ -236,6 +283,24 @@ public class ProductsController : ControllerBase
         }
 
         var product = _mapper.Map<Product>(dto);
+
+        if (dto.PurchasePrice is null)
+        {
+            // Cost price omitted: keep the stored one, and still enforce "sale price >= cost price" against it
+            var existing = await _productService.GetProductAsync(id);
+            if (existing is null)
+            {
+                return NotFound();
+            }
+
+            if (dto.SalePrice < existing.PurchasePrice)
+            {
+                ModelState.AddModelError(nameof(dto.SalePrice), "Giá bán không được nhỏ hơn giá nhập");
+                return ValidationProblem(ModelState);
+            }
+
+            product.PurchasePrice = existing.PurchasePrice;
+        }
 
         try
         {

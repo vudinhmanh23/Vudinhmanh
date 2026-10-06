@@ -43,6 +43,12 @@ public class ProductService : IProductService
         return await _productQueries.GetBelowReorderLevelAsync(includeInactive);
     }
 
+    public async Task<(IReadOnlyList<Product> Items, int TotalCount)> SearchProductsAsync(
+        string? search, int? categoryId, string sortBy, bool descending, int page, int pageSize)
+    {
+        return await _productQueries.SearchAsync(search, categoryId, sortBy, descending, page, pageSize);
+    }
+
     public async Task<InventorySummary> GetInventorySummaryAsync()
     {
         return await _productQueries.GetInventorySummaryAsync();

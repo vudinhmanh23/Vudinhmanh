@@ -13,7 +13,8 @@ public class UpdateProductDto
 
     public string Unit { get; set; } = "cái";
 
-    public decimal PurchasePrice { get; set; }
+    // Optional: when omitted the product keeps its current cost price (read models never expose it, so UIs cannot echo it back)
+    public decimal? PurchasePrice { get; set; }
 
     public decimal SalePrice { get; set; }
 

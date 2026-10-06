@@ -45,4 +45,40 @@ public class ProductRepository : Repository<Product>, IProductRepository
             ? new InventorySummary(0, 0, 0, 0m)
             : new InventorySummary(summary.Total, summary.Active, summary.Low, summary.Value);
     }
+
+    public async Task<(IReadOnlyList<Product> Items, int TotalCount)> SearchAsync(
+        string? search, int? categoryId, string sortBy, bool descending, int page, int pageSize)
+    {
+        var query = _context.Products.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(p => p.Name.Contains(term));
+        }
+
+        if (categoryId is not null)
+        {
+            query = query.Where(p => p.CategoryId == categoryId);
+        }
+
+        var totalCount = await query.CountAsync();
+
+        // Id is the tie-breaker so pages stay stable when many products share a name or price
+        var ordered = (sortBy, descending) switch
+        {
+            ("price", true) => query.OrderByDescending(p => p.SalePrice),
+            ("price", false) => query.OrderBy(p => p.SalePrice),
+            (_, true) => query.OrderByDescending(p => p.Name),
+            _ => query.OrderBy(p => p.Name)
+        };
+
+        var items = await ordered
+            .ThenBy(p => p.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (items, totalCount);
+    }
 }

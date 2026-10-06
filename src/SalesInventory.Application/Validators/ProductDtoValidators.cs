@@ -64,7 +64,7 @@ public class UpdateProductDtoValidator : AbstractValidator<UpdateProductDto>
 
     public UpdateProductDtoValidator(IProductService productService)
     {
-        ProductRules.Apply(this, x => x.Name, x => x.Sku, x => x.Description, x => x.Barcode, x => x.Unit, x => x.PurchasePrice, x => x.SalePrice, x => x.Quantity);
+        ProductRules.Apply(this, x => x.Name, x => x.Sku, x => x.Description, x => x.Barcode, x => x.Unit, x => x.PurchasePrice ?? 0, x => x.SalePrice, x => x.Quantity);
         RuleFor(x => x.LowStockThreshold).GreaterThanOrEqualTo(0);
         RuleFor(x => x.ReorderLevel).GreaterThanOrEqualTo(0);
 

@@ -15,6 +15,10 @@ public interface IProductService
     Task<IReadOnlyList<Product>> GetLowStockProductsAsync(bool includeInactive = false);
 
     Task<InventorySummary> GetInventorySummaryAsync();
+
+    // One page of products for list screens; see IProductRepository.SearchAsync for the parameters
+    Task<(IReadOnlyList<Product> Items, int TotalCount)> SearchProductsAsync(
+        string? search, int? categoryId, string sortBy, bool descending, int page, int pageSize);
     Task<bool> IsSkuTakenAsync(string sku, int? excludeProductId);
     Task<bool> IsBarcodeTakenAsync(string barcode, int? excludeProductId);
     Task<IEnumerable<Product>> GetProductsByCategoryIdAsync(int categoryId);

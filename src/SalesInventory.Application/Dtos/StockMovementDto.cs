@@ -11,6 +11,8 @@ public class StockMovementDto
 
     // Signed: positive for stock in, negative for stock out
     public int Quantity { get; set; }
+    public int StockAfter { get; set; }
+    public string? Reference { get; set; }
     public string RefType { get; set; } = string.Empty;
     public int RefId { get; set; }
     public DateTime CreatedAt { get; set; }

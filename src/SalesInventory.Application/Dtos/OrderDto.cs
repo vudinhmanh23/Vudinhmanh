@@ -15,4 +15,15 @@ public class OrderDto
 
     // Low-stock notices raised by this sale (only filled on create); they never block the order
     public List<string> Warnings { get; set; } = new();
+
+    // Same notices as structured data: the products left at or below their LowStockThreshold
+    public List<LowStockProductDto> LowStockProducts { get; set; } = new();
+}
+
+public class LowStockProductDto
+{
+    public int ProductId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public int StockQuantity { get; set; }
+    public int LowStockThreshold { get; set; }
 }

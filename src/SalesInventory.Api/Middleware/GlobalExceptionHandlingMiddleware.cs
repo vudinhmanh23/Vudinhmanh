@@ -84,9 +84,15 @@ public class GlobalExceptionHandlingMiddleware
                 };
 
             // Another request changed the same row (e.g. stock) between our read and write
-            case Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException:
+            case Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException or ConcurrencyConflictException:
                 return Create(context, StatusCodes.Status409Conflict, "Concurrency conflict.",
                     "https://tools.ietf.org/html/rfc9110#section-15.5.10", "The data was modified by another request. Please retry.");
+
+            case InsufficientStockException stock:
+                var stockProblem = Create(context, StatusCodes.Status409Conflict, "Insufficient stock.",
+                    "https://tools.ietf.org/html/rfc9110#section-15.5.10", stock.Message);
+                stockProblem.Extensions["shortages"] = stock.Shortages;
+                return stockProblem;
 
             case NotFoundException:
                 return Create(context, StatusCodes.Status404NotFound, "Resource not found.",

@@ -121,6 +121,7 @@ public class ProductService : IProductService
         existing.SalePrice = product.SalePrice;
         existing.IsActive = product.IsActive;
         existing.StockQuantity = product.StockQuantity;
+        existing.LowStockThreshold = product.LowStockThreshold;
         existing.CategoryId = product.CategoryId;
 
         _productRepository.Update(existing);

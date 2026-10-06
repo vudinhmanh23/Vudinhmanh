@@ -18,6 +18,8 @@ public class UnitOfWork : IUnitOfWork
         return new EfTransaction(transaction);
     }
 
+    public void ResetTracking() => _context.ChangeTracker.Clear();
+
     private sealed class EfTransaction : IUnitOfWorkTransaction
     {
         private readonly Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction _transaction;

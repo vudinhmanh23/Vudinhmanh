@@ -61,6 +61,7 @@ public class StockMovementService : IStockMovementService
             ProductId = productId,
             MovementType = StockMovementType.Adjustment,
             Quantity = delta,
+            StockAfter = product.StockQuantity,
             RefType = ManualAdjustmentReferenceType,
             RefId = 0, // no source document for a manual correction
             CreatedAt = DateTime.UtcNow,

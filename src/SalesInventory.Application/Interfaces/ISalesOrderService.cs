@@ -1,9 +1,13 @@
+using SalesInventory.Application.Dtos;
 using SalesInventory.Domain.Entities;
 
 namespace SalesInventory.Application.Interfaces;
 
 // The persisted order plus any non-blocking low-stock warnings
-public record CreateSalesOrderResult(SalesOrder Order, IReadOnlyList<string> Warnings);
+public record CreateSalesOrderResult(
+    SalesOrder Order,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<LowStockProductDto> LowStockProducts);
 
 // Business-facing operations for SalesOrder, on top of the repository layer
 public interface ISalesOrderService

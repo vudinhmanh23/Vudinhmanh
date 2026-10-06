@@ -19,6 +19,8 @@ public class UpdateProductDto
 
     public int Quantity { get; set; }
 
+    public int LowStockThreshold { get; set; } = 5;
+
     public bool IsActive { get; set; } = true;
 
     public int CategoryId { get; set; }

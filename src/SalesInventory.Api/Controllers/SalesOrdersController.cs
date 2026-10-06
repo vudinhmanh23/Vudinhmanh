@@ -52,6 +52,7 @@ public class SalesOrdersController : ControllerBase
         var created = await _salesOrderService.GetOrderAsync(result.Order.Id);
         var response = _mapper.Map<OrderDto>(created);
         response.Warnings = result.Warnings.ToList();
+        response.LowStockProducts = result.LowStockProducts.ToList();
 
         return CreatedAtAction(nameof(GetOrder), new { id = response.Id }, response);
     }

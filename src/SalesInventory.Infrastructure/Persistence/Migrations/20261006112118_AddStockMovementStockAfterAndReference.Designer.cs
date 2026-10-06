@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SalesInventory.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using SalesInventory.Infrastructure.Persistence;
 namespace SalesInventory.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006112118_AddStockMovementStockAfterAndReference")]
+    partial class AddStockMovementStockAfterAndReference
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -271,9 +274,6 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
-                    b.Property<int>("LowStockThreshold")
-                        .HasColumnType("int");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -328,10 +328,7 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("Products", t =>
-                        {
-                            t.HasCheckConstraint("CK_Products_StockQuantity_NonNegative", "[StockQuantity] >= 0");
-                        });
+                    b.ToTable("Products");
 
                     b.HasData(
                         new
@@ -340,7 +337,6 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 1,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
-                            LowStockThreshold = 5,
                             Name = "Bàn phím cơ",
                             Price = 550000m,
                             PurchasePrice = 0m,
@@ -356,7 +352,6 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 1,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
-                            LowStockThreshold = 5,
                             Name = "Chuột không dây",
                             Price = 250000m,
                             PurchasePrice = 0m,
@@ -372,7 +367,6 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 2,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
-                            LowStockThreshold = 5,
                             Name = "Bút bi Thiên Long",
                             Price = 5000m,
                             PurchasePrice = 0m,
@@ -388,7 +382,6 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 2,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
-                            LowStockThreshold = 5,
                             Name = "Giấy in A4",
                             Price = 65000m,
                             PurchasePrice = 0m,
@@ -404,7 +397,6 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 3,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
-                            LowStockThreshold = 5,
                             Name = "Nồi cơm điện",
                             Price = 850000m,
                             PurchasePrice = 0m,
@@ -420,7 +412,6 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 4,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
-                            LowStockThreshold = 5,
                             Name = "Áo thun nam",
                             Price = 150000m,
                             PurchasePrice = 0m,
@@ -436,7 +427,6 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 4,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
-                            LowStockThreshold = 5,
                             Name = "Giày thể thao",
                             Price = 750000m,
                             PurchasePrice = 0m,
@@ -452,7 +442,6 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 5,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
-                            LowStockThreshold = 5,
                             Name = "Mì gói Hảo Hảo (thùng)",
                             Price = 120000m,
                             PurchasePrice = 0m,

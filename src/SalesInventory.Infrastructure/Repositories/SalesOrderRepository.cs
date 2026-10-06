@@ -1,4 +1,6 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using SalesInventory.Application.Exceptions;
 using SalesInventory.Application.Interfaces;
 using SalesInventory.Domain.Entities;
 using SalesInventory.Infrastructure.Persistence;
@@ -9,6 +11,25 @@ public class SalesOrderRepository : Repository<SalesOrder>, ISalesOrderRepositor
 {
     public SalesOrderRepository(AppDbContext context) : base(context)
     {
+    }
+
+    // Race losers are reported as one retryable exception instead of provider-specific ones:
+    // stale Product.RowVersion, duplicate order number (unique index) and SQL Server deadlock victims
+    public override async Task SaveChangesAsync()
+    {
+        try
+        {
+            await base.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new ConcurrencyConflictException("The data was modified by another request.", ex);
+        }
+        // 2601/2627: duplicate key (another request took the same order number); 1205: deadlock victim
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 or 1205 })
+        {
+            throw new ConcurrencyConflictException("Another request is changing the same data.", ex);
+        }
     }
 
     public async Task<IReadOnlyList<SalesOrder>> GetAllWithItemsAsync()

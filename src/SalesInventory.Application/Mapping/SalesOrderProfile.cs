@@ -11,7 +11,8 @@ public class SalesOrderProfile : Profile
     {
         CreateMap<SalesOrder, OrderDto>()
             .ForMember(d => d.Status, o => o.MapFrom(s => s.Status.ToString()))
-            .ForMember(d => d.Warnings, o => o.Ignore());
+            .ForMember(d => d.Warnings, o => o.Ignore())
+            .ForMember(d => d.LowStockProducts, o => o.Ignore());
         CreateMap<SalesOrderItem, OrderItemDto>()
             .ForMember(d => d.ProductName, o => o.MapFrom(s => s.Product != null ? s.Product.Name : null));
 

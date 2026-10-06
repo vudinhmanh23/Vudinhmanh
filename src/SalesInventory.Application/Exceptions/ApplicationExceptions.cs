@@ -24,6 +24,30 @@ public class UnprocessableEntityException : Exception
     }
 }
 
+public record StockShortage(int ProductId, string ProductName, int Requested, int Available);
+
+// One or more order lines need more stock than is on hand; the API maps this to 409 ProblemDetails
+public class InsufficientStockException : Exception
+{
+    public IReadOnlyList<StockShortage> Shortages { get; }
+
+    public InsufficientStockException(IReadOnlyList<StockShortage> shortages)
+        : base("Insufficient stock: " + string.Join("; ", shortages.Select(s =>
+            $"'{s.ProductName}' (Id {s.ProductId}): need {s.Requested}, only {s.Available} available")) + ".")
+    {
+        Shortages = shortages;
+    }
+}
+
+// A concurrent request won a race on the same rows (stale RowVersion, duplicate order number, deadlock victim).
+// Safe to retry from scratch; the API maps this to 409 ProblemDetails once retries are exhausted.
+public class ConcurrencyConflictException : Exception
+{
+    public ConcurrencyConflictException(string message, Exception? inner = null) : base(message, inner)
+    {
+    }
+}
+
 // A business rule was violated; the API maps this to 400 ProblemDetails
 public class BusinessRuleException : Exception
 {

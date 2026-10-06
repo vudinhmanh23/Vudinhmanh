@@ -17,6 +17,13 @@ public class StockMovement
     // Signed delta: positive for stock in, negative for stock out
     public int Quantity { get; set; }
 
+    // Product.StockQuantity right after this movement was applied
+    public int StockAfter { get; set; }
+
+    // Human-readable document code, e.g. the sales order number; null for manual adjustments
+    [MaxLength(50)]
+    public string? Reference { get; set; }
+
     // The kind of document that caused the movement, e.g. "PurchaseOrder"
     [Required]
     [MaxLength(50)]

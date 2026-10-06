@@ -122,6 +122,7 @@ public class ProductService : IProductService
         existing.IsActive = product.IsActive;
         existing.StockQuantity = product.StockQuantity;
         existing.LowStockThreshold = product.LowStockThreshold;
+        existing.ReorderLevel = product.ReorderLevel;
         existing.CategoryId = product.CategoryId;
 
         _productRepository.Update(existing);

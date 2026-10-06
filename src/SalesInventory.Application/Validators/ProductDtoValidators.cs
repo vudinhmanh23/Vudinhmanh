@@ -47,6 +47,7 @@ public class CreateProductDtoValidator : AbstractValidator<CreateProductDto>
     {
         ProductRules.Apply(this, x => x.Name, x => x.Sku, x => x.Description, x => x.Barcode, x => x.Unit, x => x.PurchasePrice, x => x.SalePrice, x => x.Quantity);
         RuleFor(x => x.LowStockThreshold).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.ReorderLevel).GreaterThanOrEqualTo(0);
 
         // Block duplicate SKUs at the validation layer (the lookup goes through the service, not DbContext, to keep layers clean)
         RuleFor(x => x.Sku)
@@ -65,6 +66,7 @@ public class UpdateProductDtoValidator : AbstractValidator<UpdateProductDto>
     {
         ProductRules.Apply(this, x => x.Name, x => x.Sku, x => x.Description, x => x.Barcode, x => x.Unit, x => x.PurchasePrice, x => x.SalePrice, x => x.Quantity);
         RuleFor(x => x.LowStockThreshold).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.ReorderLevel).GreaterThanOrEqualTo(0);
 
         // Changing the SKU/barcode to one that belongs to a different product is a validation error (400)
         RuleFor(x => x.Sku)

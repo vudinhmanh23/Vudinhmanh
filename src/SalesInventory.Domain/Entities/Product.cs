@@ -41,6 +41,9 @@ public class Product
     // A sale that leaves StockQuantity <= this value raises a low-stock warning (it never blocks the sale)
     public int LowStockThreshold { get; set; } = 5;
 
+    // Minimum stock the business wants to keep on hand; informational only, no stock logic reads it yet
+    public int ReorderLevel { get; set; }
+
     // Optimistic concurrency token: two sales racing for the same stock cannot both win
     [Timestamp]
     public byte[]? RowVersion { get; set; }

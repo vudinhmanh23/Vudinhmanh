@@ -104,7 +104,8 @@ public class SalesOrdersStockTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("need 4, only 3 available", body);
+        Assert.Contains("Không đủ tồn kho cho sản phẩm", body);
+        Assert.Contains("cần 4, còn 3", body);
         Assert.Equal(3, StockOf(productId));
         Assert.Empty(Movements(productId));
         Assert.Empty(OrdersOf(customerId));

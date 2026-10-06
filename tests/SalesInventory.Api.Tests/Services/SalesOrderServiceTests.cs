@@ -111,6 +111,50 @@ public sealed class SalesOrderServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateOrderAsync_FailureRightBeforeCommit_RollsBackOrderStockAndMovements()
+    {
+        // Everything has been written inside the transaction (order, deduction, movement) when the commit blows up
+        var service = new SalesOrderService(
+            new SalesOrderRepository(_db),
+            new Repository<Customer>(_db),
+            new Repository<Product>(_db),
+            new Repository<StockMovement>(_db),
+            new CommitFailsUnitOfWork(new UnitOfWork(_db)),
+            NullLogger<SalesOrderService>.Instance);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateOrderAsync(Order((1, 5))));
+
+        Assert.Equal(50, await StockOfAsync(1));
+        await AssertNothingPersistedAsync();
+    }
+
+    // Test double: behaves like the real unit of work except that CommitAsync always fails
+    private sealed class CommitFailsUnitOfWork : SalesInventory.Application.Interfaces.IUnitOfWork
+    {
+        private readonly SalesInventory.Application.Interfaces.IUnitOfWork _inner;
+
+        public CommitFailsUnitOfWork(SalesInventory.Application.Interfaces.IUnitOfWork inner) => _inner = inner;
+
+        public void ResetTracking() => _inner.ResetTracking();
+
+        public async Task<SalesInventory.Application.Interfaces.IUnitOfWorkTransaction> BeginTransactionAsync() =>
+            new FailingTransaction(await _inner.BeginTransactionAsync());
+
+        private sealed class FailingTransaction : SalesInventory.Application.Interfaces.IUnitOfWorkTransaction
+        {
+            private readonly SalesInventory.Application.Interfaces.IUnitOfWorkTransaction _inner;
+
+            public FailingTransaction(SalesInventory.Application.Interfaces.IUnitOfWorkTransaction inner) => _inner = inner;
+
+            public Task CommitAsync() => throw new InvalidOperationException("test rollback");
+
+            public Task RollbackAsync() => _inner.RollbackAsync();
+
+            public ValueTask DisposeAsync() => _inner.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task CreateOrderAsync_ExactlyAllStock_Succeeds_AndLeavesZeroNotNegative()
     {
         await _service.CreateOrderAsync(Order((1, 50)));

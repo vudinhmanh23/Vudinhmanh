@@ -32,8 +32,8 @@ public class InsufficientStockException : Exception
     public IReadOnlyList<StockShortage> Shortages { get; }
 
     public InsufficientStockException(IReadOnlyList<StockShortage> shortages)
-        : base("Insufficient stock: " + string.Join("; ", shortages.Select(s =>
-            $"'{s.ProductName}' (Id {s.ProductId}): need {s.Requested}, only {s.Available} available")) + ".")
+        : base(string.Join(" ", shortages.Select(s =>
+            $"Không đủ tồn kho cho sản phẩm '{s.ProductName}' (Id {s.ProductId}): cần {s.Requested}, còn {s.Available}.")))
     {
         Shortages = shortages;
     }

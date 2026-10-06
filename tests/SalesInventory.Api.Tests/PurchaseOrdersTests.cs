@@ -141,6 +141,8 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         });
         Assert.Equal(3, movements.Single(m => m.ProductId == p1).Quantity);
         Assert.Equal(2, movements.Single(m => m.ProductId == p2).Quantity);
+        Assert.Equal(13, movements.Single(m => m.ProductId == p1).StockAfter);
+        Assert.Equal(7, movements.Single(m => m.ProductId == p2).StockAfter);
         Assert.Equal(PurchaseOrderStatus.Approved, (await db.PurchaseOrders.SingleAsync(o => o.Id == created.Id)).Status);
     }
 

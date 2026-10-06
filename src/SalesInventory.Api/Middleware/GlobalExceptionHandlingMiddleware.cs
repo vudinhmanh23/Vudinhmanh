@@ -89,7 +89,7 @@ public class GlobalExceptionHandlingMiddleware
                     "https://tools.ietf.org/html/rfc9110#section-15.5.10", "The data was modified by another request. Please retry.");
 
             case InsufficientStockException stock:
-                var stockProblem = Create(context, StatusCodes.Status409Conflict, "Insufficient stock.",
+                var stockProblem = Create(context, StatusCodes.Status409Conflict, "Không đủ tồn kho.",
                     "https://tools.ietf.org/html/rfc9110#section-15.5.10", stock.Message);
                 stockProblem.Extensions["shortages"] = stock.Shortages;
                 return stockProblem;

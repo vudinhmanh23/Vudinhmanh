@@ -164,6 +164,24 @@ public class ProductsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Stocktake: sets a product's stock to a counted number. The Adjustment movement records
+    /// Quantity = new stock - old stock (negative or positive) and the reason you give.
+    /// </summary>
+    [HttpPost("{id}/set-stock")]
+    [Authorize(Policy = AuthPolicies.CanManageInventory)]
+    public async Task<ActionResult<StockAdjustmentDto>> SetStock(int id, SetStockDto dto)
+    {
+        var result = await _stockMovementService.SetStockAsync(id, dto.NewQuantity, dto.Reason);
+        return Ok(new StockAdjustmentDto
+        {
+            ProductId = id,
+            PreviousQuantity = result.PreviousQuantity,
+            NewQuantity = result.NewQuantity,
+            Movement = _mapper.Map<StockMovementDto>(result.Movement)
+        });
+    }
+
     /// <summary>Creates a new product.</summary>
     [HttpPost]
     [Authorize(Policy = AuthPolicies.CanManageInventory)]

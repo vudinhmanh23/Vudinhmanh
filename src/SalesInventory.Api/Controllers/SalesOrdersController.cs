@@ -16,10 +16,12 @@ public class SalesOrdersController : ControllerBase
 {
     private readonly ISalesOrderService _salesOrderService;
     private readonly IMapper _mapper;
+    private readonly IInvoicePdfService _invoicePdfService;
 
-    public SalesOrdersController(ISalesOrderService salesOrderService, IMapper mapper)
+    public SalesOrdersController(ISalesOrderService salesOrderService, IMapper mapper, IInvoicePdfService invoicePdfService)
     {
         _salesOrderService = salesOrderService;
+        _invoicePdfService = invoicePdfService;
         _mapper = mapper;
     }
 
@@ -37,6 +39,20 @@ public class SalesOrdersController : ControllerBase
     {
         var order = await _salesOrderService.GetOrderAsync(id);
         return order is null ? NotFound() : Ok(_mapper.Map<OrderDto>(order));
+    }
+
+    /// <summary>Downloads the invoice of an order as a PDF file (invoice-{id}.pdf).</summary>
+    [HttpGet("{id}/invoice-pdf")]
+    [Produces("application/pdf")]
+    public async Task<IActionResult> GetInvoicePdf(int id)
+    {
+        var order = await _salesOrderService.GetOrderAsync(id);
+        if (order is null)
+        {
+            return NotFound();
+        }
+
+        return File(_invoicePdfService.Generate(order), "application/pdf", $"invoice-{id}.pdf");
     }
 
     /// <summary>

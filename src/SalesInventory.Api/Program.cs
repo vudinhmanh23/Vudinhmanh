@@ -12,11 +12,15 @@ using SalesInventory.Application.Interfaces;
 using SalesInventory.Infrastructure;
 using SalesInventory.Infrastructure.Storage;
 
+// QuestPDF is used under its free Community license
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 builder.Services.Configure<SalesInventory.Application.InventorySettings>(builder.Configuration.GetSection("Inventory"));
+builder.Services.Configure<SalesInventory.Application.ShopSettings>(builder.Configuration.GetSection("Shop"));
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 

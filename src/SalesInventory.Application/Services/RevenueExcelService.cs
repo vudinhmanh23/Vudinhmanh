@@ -8,11 +8,12 @@ namespace SalesInventory.Application.Services;
 public class RevenueExcelService : IRevenueExcelService
 {
     private const string SheetName = "DoanhThu";
+    private const string TopSheetName = "TopSanPham";
 
     // Vietnamese currency: thousands separators plus a trailing "đ"
     private const string CurrencyFormat = "#,##0\" đ\"";
 
-    public byte[] Generate(IReadOnlyList<RevenueByPeriodDto> days)
+    public byte[] Generate(IReadOnlyList<RevenueByPeriodDto> days, IReadOnlyList<TopProductDto> topProducts)
     {
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add(SheetName);
@@ -60,8 +61,43 @@ public class RevenueExcelService : IRevenueExcelService
 
         sheet.Columns().AdjustToContents();
 
+        AddTopProductsSheet(workbook, topProducts);
+
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
         return stream.ToArray();
+    }
+
+    // Second sheet: best sellers (units sold and revenue per product), most units first
+    private static void AddTopProductsSheet(XLWorkbook workbook, IReadOnlyList<TopProductDto> topProducts)
+    {
+        var sheet = workbook.Worksheets.Add(TopSheetName);
+
+        sheet.Cell(1, 1).Value = "STT";
+        sheet.Cell(1, 2).Value = "Sản phẩm";
+        sheet.Cell(1, 3).Value = "Số lượng đã bán";
+        sheet.Cell(1, 4).Value = "Doanh thu";
+        var header = sheet.Range(1, 1, 1, 4);
+        header.Style.Font.Bold = true;
+        header.Style.Fill.BackgroundColor = XLColor.LightGray;
+        sheet.SheetView.FreezeRows(1);
+
+        var row = 2;
+        foreach (var product in topProducts)
+        {
+            sheet.Cell(row, 1).Value = row - 1;
+            sheet.Cell(row, 2).Value = product.Name;
+            sheet.Cell(row, 3).Value = product.QuantitySold;
+            sheet.Cell(row, 4).Value = product.Revenue;
+            row++;
+        }
+
+        if (topProducts.Count > 0)
+        {
+            sheet.Range(2, 3, row - 1, 3).Style.NumberFormat.Format = "#,##0";
+            sheet.Range(2, 4, row - 1, 4).Style.NumberFormat.Format = CurrencyFormat;
+        }
+
+        sheet.Columns().AdjustToContents();
     }
 }

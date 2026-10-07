@@ -51,14 +51,7 @@ public class DashboardService : IDashboardService
 
     public async Task<IReadOnlyList<RevenueByPeriodDto>> GetRevenueReportAsync(DateTime? from, DateTime? to, RevenueGroupBy groupBy, bool compare)
     {
-        // Default window: 12 calendar months ending today, or the last 30 days when grouping by day
-        var end = (to ?? (from is { } f ? f.AddMonths(11) : DateTime.Today)).Date;
-        var start = from ?? (groupBy == RevenueGroupBy.Day
-            ? end.AddDays(-29)
-            : new DateTime(end.Year, end.Month, 1).AddMonths(-11));
-
-        // The whole of the last day is included
-        var toExclusive = ToExclusiveUpperBound(end) ?? DateTime.MaxValue;
+        var (start, toExclusive) = ResolveWindow(from, to, groupBy);
         var current = await _repository.GetRevenueByPeriodAsync(start, toExclusive, groupBy);
 
         if (!compare || start.Year <= 1)
@@ -83,6 +76,31 @@ public class DashboardService : IDashboardService
                 groupBy,
                 previousByPeriod.GetValueOrDefault(k, new RevenuePoint(k, 0m, 0))))
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<TopProductDto>> GetTopProductsAsync(DateTime? from, DateTime? to, int limit)
+    {
+        var (start, toExclusive) = ResolveWindow(from, to, RevenueGroupBy.Day);
+        return await _repository.GetTopProductsAsync(start, toExclusive, Math.Clamp(limit, 1, 100));
+    }
+
+    public (DateTime From, DateTime To) ResolveDayRange(DateTime? from, DateTime? to)
+    {
+        // The exclusive upper bound is the start of the day after the last included day
+        var (start, toExclusive) = ResolveWindow(from, to, RevenueGroupBy.Day);
+        return (start, toExclusive == DateTime.MaxValue ? toExclusive : toExclusive.AddDays(-1));
+    }
+
+    // Default window: 12 calendar months ending today, or the last 30 days when grouping by day.
+    // The upper bound is exclusive, so the whole of the last day is included
+    private static (DateTime Start, DateTime ToExclusive) ResolveWindow(DateTime? from, DateTime? to, RevenueGroupBy groupBy)
+    {
+        var end = (to ?? (from is { } f ? f.AddMonths(11) : DateTime.Today)).Date;
+        var start = from ?? (groupBy == RevenueGroupBy.Day
+            ? end.AddDays(-29)
+            : new DateTime(end.Year, end.Month, 1).AddMonths(-11));
+
+        return (start, ToExclusiveUpperBound(end) ?? DateTime.MaxValue);
     }
 
     private static RevenueByPeriodDto ToDto(RevenuePoint point, RevenueGroupBy groupBy, RevenuePoint? previousYear)

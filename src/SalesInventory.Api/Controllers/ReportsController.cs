@@ -13,18 +13,21 @@ namespace SalesInventory.Api.Controllers;
 public class ReportsController : ControllerBase
 {
     private const string XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    private const int TopProductCount = 10;
 
     private readonly IDashboardService _dashboardService;
     private readonly IRevenueExcelService _revenueExcelService;
+    private readonly IRevenuePdfService _revenuePdfService;
 
-    public ReportsController(IDashboardService dashboardService, IRevenueExcelService revenueExcelService)
+    public ReportsController(IDashboardService dashboardService, IRevenueExcelService revenueExcelService, IRevenuePdfService revenuePdfService)
     {
         _dashboardService = dashboardService;
         _revenueExcelService = revenueExcelService;
+        _revenuePdfService = revenuePdfService;
     }
 
     /// <summary>
-    /// Daily revenue as an Excel file (revenue-report.xlsx, sheet "DoanhThu") with a total row.
+    /// Daily revenue as an Excel file (revenue-report.xlsx): sheet "DoanhThu" with a total row and sheet "TopSanPham" with the 10 best sellers.
     /// Same data as GET /api/reports/revenue?groupBy=day; without dates the last 30 days are exported.
     /// </summary>
     [HttpGet("revenue/excel")]
@@ -38,7 +41,27 @@ public class ReportsController : ControllerBase
         }
 
         var days = await _dashboardService.GetRevenueReportAsync(from, to, RevenueGroupBy.Day, compare: false);
-        return File(_revenueExcelService.Generate(days), XlsxContentType, "revenue-report.xlsx");
+        var topProducts = await _dashboardService.GetTopProductsAsync(from, to, TopProductCount);
+        return File(_revenueExcelService.Generate(days, topProducts), XlsxContentType, "revenue-report.xlsx");
+    }
+
+    /// <summary>
+    /// Daily revenue as a PDF table with a total row (revenue-report.pdf). Same data as the Excel export and
+    /// GET /api/reports/revenue?groupBy=day; without dates the last 30 days are exported.
+    /// </summary>
+    [HttpGet("revenue/pdf")]
+    [Produces("application/pdf")]
+    public async Task<IActionResult> GetRevenuePdf([FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        if (from is not null && to is not null && from > to)
+        {
+            ModelState.AddModelError(nameof(from), "from must not be later than to.");
+            return ValidationProblem(ModelState);
+        }
+
+        var days = await _dashboardService.GetRevenueReportAsync(from, to, RevenueGroupBy.Day, compare: false);
+        var range = _dashboardService.ResolveDayRange(from, to);
+        return File(_revenuePdfService.Generate(days, range.From, range.To), "application/pdf", "revenue-report.pdf");
     }
 
     /// <summary>

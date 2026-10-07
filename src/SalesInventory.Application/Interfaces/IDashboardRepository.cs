@@ -14,6 +14,9 @@ public interface IDashboardRepository
     // Completed orders with OrderDate in [from, toExclusive) grouped by day, month or quarter (GROUP BY in SQL), oldest first
     Task<IReadOnlyList<RevenuePoint>> GetRevenueByPeriodAsync(DateTime from, DateTime toExclusive, RevenueGroupBy groupBy);
 
+    // Best-selling products of completed orders with OrderDate in [from, toExclusive): most units first, at most `limit` rows
+    Task<IReadOnlyList<TopProductDto>> GetTopProductsAsync(DateTime from, DateTime toExclusive, int limit);
+
     // Active products at or below their LowStockThreshold, lowest stock first, at most `limit` rows
     Task<IReadOnlyList<DashboardLowStockItemDto>> GetLowStockItemsAsync(int limit);
 }

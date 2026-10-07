@@ -31,21 +31,7 @@ public class InvoicePdfService : IInvoicePdfService
             page.Margin(40);
             page.DefaultTextStyle(x => x.FontFamily(InvoiceFonts.Family).FontSize(10));
 
-            page.Header().Column(column =>
-            {
-                column.Item().Text(_shop.Name).FontSize(18).Bold();
-                if (!string.IsNullOrWhiteSpace(_shop.Address))
-                {
-                    column.Item().Text(_shop.Address);
-                }
-
-                if (!string.IsNullOrWhiteSpace(_shop.Phone))
-                {
-                    column.Item().Text($"Điện thoại: {_shop.Phone}");
-                }
-
-                column.Item().PaddingTop(12).AlignCenter().Text("HÓA ĐƠN BÁN HÀNG").FontSize(16).Bold();
-            });
+            page.Header().Element(header => PdfHeader.Compose(header, _shop, "HÓA ĐƠN BÁN HÀNG"));
 
             page.Content().PaddingVertical(15).Column(column =>
             {

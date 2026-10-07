@@ -105,6 +105,24 @@ public class DashboardRepository : IDashboardRepository
             .ToList();
     }
 
+    public async Task<IReadOnlyList<TopProductDto>> GetTopProductsAsync(DateTime from, DateTime toExclusive, int limit)
+    {
+        // One GROUP BY over the order lines of completed orders; ties are broken by name and id so the list is stable
+        var rows = await _context.SalesOrderItems
+            .AsNoTracking()
+            .Where(i => i.SalesOrder!.Status == SalesOrderStatus.Completed
+                        && i.SalesOrder.OrderDate >= from && i.SalesOrder.OrderDate < toExclusive)
+            .GroupBy(i => new { i.ProductId, i.Product!.Name })
+            .Select(g => new { g.Key.ProductId, g.Key.Name, Quantity = g.Sum(i => i.Quantity), Revenue = g.Sum(i => i.LineTotal) })
+            .OrderByDescending(r => r.Quantity)
+            .ThenBy(r => r.Name)
+            .ThenBy(r => r.ProductId)
+            .Take(limit)
+            .ToListAsync();
+
+        return rows.Select(r => new TopProductDto(r.ProductId, r.Name, r.Quantity, r.Revenue)).ToList();
+    }
+
     // Shape shared by the three GROUP BY queries above
     private sealed class BucketRow
     {

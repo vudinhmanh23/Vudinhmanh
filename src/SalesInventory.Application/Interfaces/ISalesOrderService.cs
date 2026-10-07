@@ -12,7 +12,9 @@ public record CreateSalesOrderResult(
 // Business-facing operations for SalesOrder, on top of the repository layer
 public interface ISalesOrderService
 {
-    Task<IReadOnlyList<SalesOrder>> GetOrdersAsync();
+    // Optional page/pageSize limit the list (newest first); without them every order is returned
+    Task<IReadOnlyList<SalesOrder>> GetOrdersAsync(int? page = null, int? pageSize = null);
+    Task<int> CountOrdersAsync();
     Task<SalesOrder?> GetOrderAsync(int id);
 
     // Sales history of one customer, newest first (empty when the customer has no orders)

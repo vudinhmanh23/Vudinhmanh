@@ -96,8 +96,8 @@ public class SupplierService : ISupplierService
 
         supplier.Code = supplier.Code.Trim();
 
-        var all = await _supplierRepository.GetAllAsync();
-        if (all.Any(s => s.Id != excludeId && string.Equals(s.Code, supplier.Code, StringComparison.OrdinalIgnoreCase)))
+        // Checked by the database (case-insensitive collation, unique index on Code) instead of loading every supplier
+        if (await _supplierRepository.AnyAsync(s => s.Id != excludeId && s.Code == supplier.Code))
         {
             throw new ArgumentException($"Supplier code '{supplier.Code}' already exists.", nameof(supplier));
         }

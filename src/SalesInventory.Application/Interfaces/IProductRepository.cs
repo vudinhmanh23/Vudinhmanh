@@ -13,6 +13,17 @@ public interface IProductRepository : IRepository<Product>
     // Filtering and ordering happen in SQL; the returned entities are not tracked (read-only).
     Task<IReadOnlyList<Product>> GetBelowReorderLevelAsync(bool includeInactive = false);
 
+    // Single-row and filtered reads done in SQL (read-only, not tracked); Sku is matched case-insensitively by the column collation
+    Task<Product?> GetBySkuAsync(string sku);
+    Task<IReadOnlyList<Product>> GetInactiveAsync();
+    Task<IReadOnlyList<Product>> GetByCategoryAsync(int categoryId);
+
+    // The products with these ids, tracked, in ONE query (for code that is about to change their stock)
+    Task<IReadOnlyList<Product>> GetByIdsAsync(IReadOnlyCollection<int> ids);
+
+    // Which of these ids exist, without loading the products
+    Task<IReadOnlyList<int>> GetExistingIdsAsync(IReadOnlyCollection<int> ids);
+
     // Counts and SUM(StockQuantity * PurchasePrice) computed by the database in a single read-only pass
     Task<InventorySummary> GetInventorySummaryAsync();
 

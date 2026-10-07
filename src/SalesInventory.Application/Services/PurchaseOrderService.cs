@@ -12,7 +12,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     private readonly IPurchaseOrderRepository _purchaseOrderRepository;
     private readonly IRepository<Supplier> _supplierRepository;
-    private readonly IRepository<Product> _productRepository;
+    private readonly IProductRepository _productRepository;
     private readonly IRepository<StockMovement> _stockMovementRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<PurchaseOrderService> _logger;
@@ -20,7 +20,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     public PurchaseOrderService(
         IPurchaseOrderRepository purchaseOrderRepository,
         IRepository<Supplier> supplierRepository,
-        IRepository<Product> productRepository,
+        IProductRepository productRepository,
         IRepository<StockMovement> stockMovementRepository,
         IUnitOfWork unitOfWork,
         ILogger<PurchaseOrderService> logger)
@@ -33,14 +33,19 @@ public class PurchaseOrderService : IPurchaseOrderService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<IReadOnlyList<PurchaseOrder>> GetPurchaseOrdersAsync()
+    public async Task<IReadOnlyList<PurchaseOrder>> GetPurchaseOrdersAsync(int? page = null, int? pageSize = null)
     {
-        return await _purchaseOrderRepository.GetAllWithItemsAsync();
+        return await _purchaseOrderRepository.GetAllWithItemsAsync(page, pageSize);
+    }
+
+    public async Task<int> CountPurchaseOrdersAsync()
+    {
+        return await _purchaseOrderRepository.CountAsync();
     }
 
     public async Task<PurchaseOrder?> GetPurchaseOrderAsync(int id)
     {
-        return await _purchaseOrderRepository.GetWithItemsAsync(id);
+        return await _purchaseOrderRepository.GetForReadAsync(id);
     }
 
     public async Task<PurchaseOrder> CreatePurchaseOrderAsync(PurchaseOrder purchaseOrder)
@@ -70,14 +75,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         // Every product must exist; report all missing ids at once
-        var missingProductIds = new List<int>();
-        foreach (var productId in items.Select(i => i.ProductId).Distinct())
-        {
-            if (await _productRepository.GetByIdAsync(productId) is null)
-            {
-                missingProductIds.Add(productId);
-            }
-        }
+        var requestedProductIds = items.Select(i => i.ProductId).Distinct().ToList();
+        var existingProductIds = await _productRepository.GetExistingIdsAsync(requestedProductIds);
+        var missingProductIds = requestedProductIds.Except(existingProductIds).ToList();
 
         if (missingProductIds.Count > 0)
         {

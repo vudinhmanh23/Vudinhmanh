@@ -16,7 +16,7 @@ public class SalesOrderService : ISalesOrderService
 
     private readonly ISalesOrderRepository _orderRepository;
     private readonly IRepository<Customer> _customerRepository;
-    private readonly IRepository<Product> _productRepository;
+    private readonly IProductRepository _productRepository;
     private readonly IRepository<StockMovement> _stockMovementRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<SalesOrderService> _logger;
@@ -24,7 +24,7 @@ public class SalesOrderService : ISalesOrderService
     public SalesOrderService(
         ISalesOrderRepository orderRepository,
         IRepository<Customer> customerRepository,
-        IRepository<Product> productRepository,
+        IProductRepository productRepository,
         IRepository<StockMovement> stockMovementRepository,
         IUnitOfWork unitOfWork,
         ILogger<SalesOrderService> logger)
@@ -37,9 +37,14 @@ public class SalesOrderService : ISalesOrderService
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<SalesOrder>> GetOrdersAsync()
+    public async Task<IReadOnlyList<SalesOrder>> GetOrdersAsync(int? page = null, int? pageSize = null)
     {
-        return await _orderRepository.GetAllWithItemsAsync();
+        return await _orderRepository.GetAllWithItemsAsync(page, pageSize);
+    }
+
+    public async Task<int> CountOrdersAsync()
+    {
+        return await _orderRepository.CountAsync();
     }
 
     public async Task<IReadOnlyList<SalesOrder>> GetOrdersByCustomerAsync(int customerId)
@@ -129,10 +134,18 @@ public class SalesOrderService : ISalesOrderService
         {
             // Load every product (tracked) and check the WHOLE order against stock before changing anything.
             // Lines of the same product are summed so two lines cannot each pass while together overselling.
-            foreach (var productId in items.Select(i => i.ProductId).Distinct())
+            var requestedIds = items.Select(i => i.ProductId).Distinct().ToList();
+            foreach (var product in await _productRepository.GetByIdsAsync(requestedIds))
             {
-                products[productId] = await _productRepository.GetByIdAsync(productId)
-                    ?? throw new NotFoundException($"Product with Id {productId} does not exist.");
+                products[product.Id] = product;
+            }
+
+            foreach (var productId in requestedIds)
+            {
+                if (!products.ContainsKey(productId))
+                {
+                    throw new NotFoundException($"Product with Id {productId} does not exist.");
+                }
             }
 
             var shortages = items

@@ -32,36 +32,64 @@ public class SalesOrderRepository : Repository<SalesOrder>, ISalesOrderRepositor
         }
     }
 
-    public async Task<IReadOnlyList<SalesOrder>> GetAllWithItemsAsync()
+    // Read-only projection: the order, its customer's name and each line's product name. Whole Product/Customer rows
+    // (description, image URL, address, ...) are never read; nothing here is tracked. The shape is still SalesOrder,
+    // so mapping to the DTOs and the invoice are unchanged.
+    private IQueryable<SalesOrder> OrdersWithItems(IQueryable<SalesOrder> orders)
     {
-        return await _context.SalesOrders
+        return orders.Select(o => new SalesOrder
+        {
+            Id = o.Id,
+            OrderNumber = o.OrderNumber,
+            OrderDate = o.OrderDate,
+            CustomerId = o.CustomerId,
+            Customer = new Customer { Id = o.Customer!.Id, Name = o.Customer.Name },
+            DiscountAmount = o.DiscountAmount,
+            TotalAmount = o.TotalAmount,
+            Note = o.Note,
+            Status = o.Status,
+            Items = o.Items.Select(i => new SalesOrderItem
+            {
+                Id = i.Id,
+                SalesOrderId = i.SalesOrderId,
+                ProductId = i.ProductId,
+                Product = new Product { Id = i.Product!.Id, Name = i.Product.Name },
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice,
+                LineTotal = i.LineTotal
+            }).ToList()
+        });
+    }
+
+    public async Task<IReadOnlyList<SalesOrder>> GetAllWithItemsAsync(int? page = null, int? pageSize = null)
+    {
+        // Newest first; Id breaks ties. Without page/pageSize everything is returned, as before
+        var ordered = _context.SalesOrders
             .AsNoTracking()
-            .Include(o => o.Items)
-                .ThenInclude(i => i.Product)
             .OrderByDescending(o => o.OrderDate)
-            .ThenByDescending(o => o.Id)
-            .ToListAsync();
+            .ThenByDescending(o => o.Id);
+
+        var paged = page is { } p && pageSize is { } size
+            ? ordered.Skip((p - 1) * size).Take(size)
+            : ordered;
+
+        return await OrdersWithItems(paged).ToListAsync();
     }
 
     public async Task<IReadOnlyList<SalesOrder>> GetByCustomerWithItemsAsync(int customerId)
     {
-        return await _context.SalesOrders
-            .AsNoTracking()
-            .Where(o => o.CustomerId == customerId)
-            .Include(o => o.Items)
-                .ThenInclude(i => i.Product)
-            .OrderByDescending(o => o.OrderDate)
-            .ThenByDescending(o => o.Id)
+        return await OrdersWithItems(_context.SalesOrders
+                .AsNoTracking()
+                .Where(o => o.CustomerId == customerId)
+                .OrderByDescending(o => o.OrderDate)
+                .ThenByDescending(o => o.Id))
             .ToListAsync();
     }
 
     public async Task<SalesOrder?> GetWithItemsAsync(int id)
     {
-        return await _context.SalesOrders
-            .AsNoTracking()
-            .Include(o => o.Items)
-                .ThenInclude(i => i.Product)
-            .FirstOrDefaultAsync(o => o.Id == id);
+        return await OrdersWithItems(_context.SalesOrders.AsNoTracking().Where(o => o.Id == id))
+            .FirstOrDefaultAsync();
     }
 
     public async Task<string?> GetLastOrderNumberWithPrefixAsync(string prefix)

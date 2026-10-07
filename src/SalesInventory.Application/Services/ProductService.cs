@@ -29,14 +29,12 @@ public class ProductService : IProductService
 
     public async Task<Product?> GetProductBySkuAsync(string sku)
     {
-        var products = await _productRepository.GetAllAsync();
-        return products.FirstOrDefault(p => string.Equals(p.Sku, sku, StringComparison.OrdinalIgnoreCase));
+        return await _productQueries.GetBySkuAsync(sku);
     }
 
     public async Task<IEnumerable<Product>> GetInactiveProductsAsync()
     {
-        var products = await _productRepository.GetAllAsync();
-        return products.Where(p => !p.IsActive);
+        return await _productQueries.GetInactiveAsync();
     }
 
     public async Task<IReadOnlyList<Product>> GetLowStockProductsAsync(bool includeInactive = false)
@@ -62,20 +60,18 @@ public class ProductService : IProductService
 
     public async Task<bool> IsSkuTakenAsync(string sku, int? excludeProductId)
     {
-        var products = await _productRepository.GetAllAsync();
-        return products.Any(p => p.Id != excludeProductId && string.Equals(p.Sku, sku, StringComparison.OrdinalIgnoreCase));
+        // The database compares with the column collation (case-insensitive) and uses the unique index on Sku
+        return await _productRepository.AnyAsync(p => p.Id != excludeProductId && p.Sku == sku);
     }
 
     public async Task<bool> IsBarcodeTakenAsync(string barcode, int? excludeProductId)
     {
-        var products = await _productRepository.GetAllAsync();
-        return products.Any(p => p.Id != excludeProductId && p.Barcode is not null && string.Equals(p.Barcode, barcode, StringComparison.OrdinalIgnoreCase));
+        return await _productRepository.AnyAsync(p => p.Id != excludeProductId && p.Barcode == barcode);
     }
 
     public async Task<IEnumerable<Product>> GetProductsByCategoryIdAsync(int categoryId)
     {
-        var products = await _productRepository.GetAllAsync();
-        return products.Where(p => p.CategoryId == categoryId);
+        return await _productQueries.GetByCategoryAsync(categoryId);
     }
 
     public async Task<Product> CreateProductAsync(Product product)

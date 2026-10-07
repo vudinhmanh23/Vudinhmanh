@@ -47,6 +47,32 @@ public class ProductRepository : Repository<Product>, IProductRepository
             : new InventorySummary(summary.Total, summary.Active, summary.Low, summary.Value);
     }
 
+    public async Task<Product?> GetBySkuAsync(string sku)
+    {
+        return await _context.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Sku == sku);
+    }
+
+    public async Task<IReadOnlyList<Product>> GetInactiveAsync()
+    {
+        return await _context.Products.AsNoTracking().Where(p => !p.IsActive).ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<Product>> GetByCategoryAsync(int categoryId)
+    {
+        return await _context.Products.AsNoTracking().Where(p => p.CategoryId == categoryId).ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<Product>> GetByIdsAsync(IReadOnlyCollection<int> ids)
+    {
+        // Tracked on purpose: callers deduct stock from these instances and save them
+        return await _context.Products.Where(p => ids.Contains(p.Id)).ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<int>> GetExistingIdsAsync(IReadOnlyCollection<int> ids)
+    {
+        return await _context.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => p.Id).ToListAsync();
+    }
+
     public async Task<(IReadOnlyList<ProductListItemDto> Items, int TotalCount)> QueryAsync(ProductQueryParameters query)
     {
         var products = _context.Products.AsNoTracking();

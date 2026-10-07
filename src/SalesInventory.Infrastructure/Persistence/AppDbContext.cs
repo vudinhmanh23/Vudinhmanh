@@ -52,6 +52,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(p => p.Barcode).IsUnique();
             // Dashboard: covers the stock-value / low-stock aggregate and the alert list, so SQL Server reads this narrow
             // index instead of scanning the wide product rows (description, image URL, ...)
+            // Category filter of the product list (EF would also create this index for the foreign key; declared for clarity)
+            entity.HasIndex(p => p.CategoryId);
+            // Default list sort orders (GET /api/products?sortBy=name or price) can walk these instead of sorting the table
+            entity.HasIndex(p => p.Name);
+            entity.HasIndex(p => p.SalePrice);
             entity.HasIndex(p => p.StockQuantity)
                 .IncludeProperties(p => new { p.IsActive, p.LowStockThreshold, p.PurchasePrice, p.Name });
             entity.Property(p => p.Description).HasMaxLength(1000);
@@ -105,6 +110,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.Property(c => c.Name).IsRequired().HasMaxLength(200);
             entity.Property(c => c.Phone).HasMaxLength(20);
+            // Looking a customer up by phone number (point of sale, call-back); not unique, several records may share a number
+            entity.HasIndex(c => c.Phone);
             entity.Property(c => c.Email).HasMaxLength(200);
             entity.Property(c => c.Address).HasMaxLength(400);
             entity.Property(c => c.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
@@ -114,6 +121,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.Property(o => o.OrderNumber).IsRequired().HasMaxLength(30);
             entity.HasIndex(o => o.OrderNumber).IsUnique();
+            // Order lists are sorted newest first (OrderDate DESC, Id DESC) without any status filter
+            entity.HasIndex(o => new { o.OrderDate, o.Id });
             // Dashboard: completed orders in a date range; TotalAmount is included so SUM never touches the table rows
             entity.HasIndex(o => new { o.Status, o.OrderDate })
                 .IncludeProperties(o => o.TotalAmount);
@@ -132,6 +141,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.Property(oi => oi.UnitPrice).HasColumnType("decimal(18,2)");
             entity.Property(oi => oi.LineTotal).HasColumnType("decimal(18,2)");
+            // Best-sellers report groups lines by product; the included columns make that a scan of this narrow index
+            entity.HasIndex(oi => oi.ProductId)
+                .IncludeProperties(oi => new { oi.SalesOrderId, oi.Quantity, oi.LineTotal });
 
             entity.HasOne(oi => oi.SalesOrder)
                 .WithMany(o => o.Items)
@@ -148,6 +160,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.Property(po => po.Code).IsRequired().HasMaxLength(30);
             entity.HasIndex(po => po.Code).IsUnique();
+            entity.HasIndex(po => new { po.OrderDate, po.Id });
             entity.Property(po => po.TotalAmount).HasColumnType("decimal(18,2)");
             entity.Property(po => po.Note).HasMaxLength(500);
 
@@ -185,7 +198,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(sm => sm.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasIndex(sm => sm.ProductId);
+            // Stock card of one product, newest first: seek on ProductId, rows already in CreatedAt/Id order
+            entity.HasIndex(sm => new { sm.ProductId, sm.CreatedAt, sm.Id });
             entity.HasIndex(sm => new { sm.RefType, sm.RefId });
         });
     }

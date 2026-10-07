@@ -7,6 +7,7 @@
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env (8+ characters with upper, lower, digit and symbol)}"
@@ -29,7 +30,7 @@ services:
       dockerfile: src/SalesInventory.Api/Dockerfile
     # depends_on waits for a healthy SQL Server at start-up, but cannot help if the database restarts later or is slow:
     # the API exits when it cannot reach it, and Docker then starts it again until it can.
-    restart: on-failure
+    restart: unless-stopped
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -46,6 +47,8 @@ services:
       # Secrets come from the environment only; the API refuses to start in production without them (or with them in a settings file)
       Jwt__Key: "${JWT__KEY:?Set JWT__KEY in .env (32+ random characters)}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      # Embeddings key for the knowledge base (RAG); without it the assistant cannot search the shop documents
+      VOYAGE_API_KEY: "${VOYAGE_API_KEY:-}"
       # The Blazor server calls the API from the server side, so no browser origin needs CORS here. Set one only if a browser
       # app on another origin calls the API directly. TRUSTEDPROXIES: the reverse proxy that ends TLS (Production only).
       Cors__AllowedOrigins__0: "${CORS__ALLOWEDORIGINS__0:-}"
@@ -60,6 +63,7 @@ services:
     build:
       context: .
       dockerfile: src/SalesInventory.Web/Dockerfile
+    restart: unless-stopped
     depends_on:
       - api
     environment:

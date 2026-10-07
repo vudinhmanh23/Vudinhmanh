@@ -73,6 +73,14 @@ public class ProductRepository : Repository<Product>, IProductRepository
         return await _context.Products.Where(p => ids.Contains(p.Id)).ToListAsync();
     }
 
+    public async Task<bool> HasDocumentsAsync(int id)
+    {
+        // Three EXISTS probes; the foreign keys to Products are Restrict, so the database would refuse the delete anyway
+        return await _context.PurchaseOrderItems.AnyAsync(i => i.ProductId == id)
+            || await _context.SalesOrderItems.AnyAsync(i => i.ProductId == id)
+            || await _context.StockMovements.AnyAsync(m => m.ProductId == id);
+    }
+
     public async Task<IReadOnlyList<int>> GetExistingIdsAsync(IReadOnlyCollection<int> ids)
     {
         return await _context.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => p.Id).ToListAsync();

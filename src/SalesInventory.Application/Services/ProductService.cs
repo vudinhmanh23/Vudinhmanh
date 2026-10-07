@@ -1,4 +1,5 @@
 using SalesInventory.Application.Dtos;
+using SalesInventory.Application.Exceptions;
 using SalesInventory.Domain.Entities;
 using SalesInventory.Application.Interfaces;
 
@@ -150,6 +151,14 @@ public class ProductService : IProductService
         if (existing is null)
         {
             return false;
+        }
+
+        // A product with orders or stock history must stay: those rows (and the stock ledger) refer to it.
+        // Without this check the database's foreign key would fail the delete and the API would answer 500.
+        if (await _productQueries.HasDocumentsAsync(id))
+        {
+            throw new ConflictException(
+                $"Không thể xóa sản phẩm {existing.Name} (Id {id}): sản phẩm đã có đơn hàng hoặc lịch sử kho. Hãy chuyển sang ngừng kinh doanh (IsActive = false).");
         }
 
         _productRepository.Delete(existing);

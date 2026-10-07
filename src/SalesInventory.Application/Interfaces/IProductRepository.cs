@@ -22,6 +22,8 @@ public interface IProductRepository : IRepository<Product>
     // The products with these ids, tracked, in ONE query (for code that is about to change their stock)
     Task<IReadOnlyList<Product>> GetByIdsAsync(IReadOnlyCollection<int> ids);
 
+    // True when any purchase order line, sales order line or stock movement still points at this product
+    Task<bool> HasDocumentsAsync(int id);
     // Which of these ids exist, without loading the products
     Task<IReadOnlyList<int>> GetExistingIdsAsync(IReadOnlyCollection<int> ids);
 

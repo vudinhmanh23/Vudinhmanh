@@ -1,6 +1,6 @@
 # CHƯƠNG 4. CÀI ĐẶT VÀ CÔNG NGHỆ
 
-> **Quy ước đối chiếu.** Phiên bản thư viện lấy từ các file `.csproj`; tên lớp, tên file lấy từ nhánh `feat/stock-ledger-and-race-safety`. Đường dẫn tính từ thư mục gốc của solution. Chương này chỉ mô tả những gì có trong mã nguồn; những điểm chưa làm được nằm ở Chương 8.
+> **Quy ước đối chiếu.** Phiên bản thư viện lấy từ các file `.csproj`; tên lớp, tên file lấy từ nhánh `main`. Đường dẫn tính từ thư mục gốc của solution. Chương này chỉ mô tả những gì có trong mã nguồn; những điểm chưa làm được nằm ở Chương 8.
 
 ## 4.1. Công nghệ và phiên bản
 

@@ -20,7 +20,7 @@
 </div>
 
 <div class="filters">
-    <input type="search" class="form-control" placeholder="Tìm theo tên sản phẩm"
+    <input type="search" class="form-control" placeholder="Tìm theo tên, mã hoặc mô tả"
            value="@_search" @oninput="OnSearchInput" />
 
     <select class="form-select" @onchange="OnCategoryChanged">
@@ -28,6 +28,18 @@
         @foreach (var category in _categories)
         {
             <option value="@category.Id" selected="@(_categoryId == category.Id)">@category.Name</option>
+        }
+    </select>
+
+    <input type="number" min="0" step="any" class="form-control price-input" placeholder="Giá từ" aria-label="Giá từ"
+           value="@_minPriceText" @oninput="OnMinPriceInput" />
+    <input type="number" min="0" step="any" class="form-control price-input" placeholder="Giá đến" aria-label="Giá đến"
+           value="@_maxPriceText" @oninput="OnMaxPriceInput" />
+
+    <select class="form-select" aria-label="Sắp xếp" @onchange="OnSortChanged">
+        @foreach (var (value, label) in SortOptions)
+        {
+            <option value="@value" selected="@(SortKey == value)">@label</option>
         }
     </select>
 </div>
@@ -48,7 +60,7 @@
             <th class="sortable" @onclick='() => SortAsync("name")'>Tên@(SortArrow("name"))</th>
             <th>Danh mục</th>
             <th class="sortable text-end" @onclick='() => SortAsync("price")'>Giá@(SortArrow("price"))</th>
-            <th class="text-end">Tồn kho</th>
+            <th class="sortable text-end" @onclick='() => SortAsync("stock")'>Tồn kho@(SortArrow("stock"))</th>
             <th></th>
         </tr>
     </thead>
@@ -121,8 +133,24 @@
     // Current query state; every change reloads the page from the API
     private string _search = string.Empty;
     private int? _categoryId;
+    // Price bounds are kept as the raw input text; they are parsed only when the request is built
+    private string _minPriceText = string.Empty;
+    private string _maxPriceText = string.Empty;
     private string _sortBy = "name";
     private bool _descending;
+
+    // Sort dropdown entries, value = "<sortBy>-<asc|desc>"
+    private static readonly (string Value, string Label)[] SortOptions =
+    {
+        ("name-asc", "Tên A → Z"),
+        ("name-desc", "Tên Z → A"),
+        ("price-asc", "Giá tăng dần"),
+        ("price-desc", "Giá giảm dần"),
+        ("stock-asc", "Tồn kho tăng dần"),
+        ("stock-desc", "Tồn kho giảm dần")
+    };
+
+    private string SortKey => $"{_sortBy}-{(_descending ? "desc" : "asc")}";
     private int _page = 1;
     private int _pageSize = DefaultPageSize;
     private int _totalCount;
@@ -131,6 +159,8 @@
     // The query string is the single source of truth for the list state, so reload and shared links keep the filters
     [SupplyParameterFromQuery(Name = "search")] public string? SearchParam { get; set; }
     [SupplyParameterFromQuery(Name = "categoryId")] public string? CategoryIdParam { get; set; }
+    [SupplyParameterFromQuery(Name = "minPrice")] public string? MinPriceParam { get; set; }
+    [SupplyParameterFromQuery(Name = "maxPrice")] public string? MaxPriceParam { get; set; }
     [SupplyParameterFromQuery(Name = "sortBy")] public string? SortByParam { get; set; }
     [SupplyParameterFromQuery(Name = "sortDir")] public string? SortDirParam { get; set; }
     [SupplyParameterFromQuery(Name = "page")] public string? PageParam { get; set; }
@@ -138,6 +168,8 @@
 
     // Search text last written to the URL; lets us tell "URL changed by us" from "URL changed from outside"
     private string _syncedSearch = string.Empty;
+    private string _syncedMinPrice = string.Empty;
+    private string _syncedMaxPrice = string.Empty;
     private bool _initialized;
 
     private bool _isLoading = true;
@@ -162,7 +194,7 @@
     protected override async Task OnParametersSetAsync()
     {
         // Invalid or missing values fall back to defaults so a hand-edited URL cannot break the page
-        _sortBy = SortByParam?.ToLowerInvariant() == "price" ? "price" : "name";
+        _sortBy = SortByParam?.ToLowerInvariant() is "price" or "stock" ? SortByParam.ToLowerInvariant() : "name";
         _descending = SortDirParam?.ToLowerInvariant() == "desc";
         _categoryId = int.TryParse(CategoryIdParam, out var categoryId) ? categoryId : null;
         _pageSize = int.TryParse(PageSizeParam, out var size) && PageSizes.Contains(size) ? size : DefaultPageSize;
@@ -174,6 +206,20 @@
         {
             _search = urlSearch;
             _syncedSearch = urlSearch;
+        }
+
+        var urlMin = MinPriceParam ?? string.Empty;
+        if (urlMin != _syncedMinPrice)
+        {
+            _minPriceText = urlMin;
+            _syncedMinPrice = urlMin;
+        }
+
+        var urlMax = MaxPriceParam ?? string.Empty;
+        if (urlMax != _syncedMaxPrice)
+        {
+            _maxPriceText = urlMax;
+            _syncedMaxPrice = urlMax;
         }
 
         // Before the first render the token cannot be read (prerendering has no JS), see OnAfterRenderAsync
@@ -203,11 +249,28 @@
         await LoadProductsAsync();
     }
 
-    private async Task OnSearchInput(ChangeEventArgs e)
+    private Task OnSearchInput(ChangeEventArgs e)
     {
         _search = e.Value?.ToString() ?? string.Empty;
+        return DebouncedNavigateAsync();
+    }
 
-        // Restart the timer on every keystroke; only the last one within 400 ms triggers a request
+    private Task OnMinPriceInput(ChangeEventArgs e)
+    {
+        _minPriceText = e.Value?.ToString() ?? string.Empty;
+        return DebouncedNavigateAsync();
+    }
+
+    private Task OnMaxPriceInput(ChangeEventArgs e)
+    {
+        _maxPriceText = e.Value?.ToString() ?? string.Empty;
+        return DebouncedNavigateAsync();
+    }
+
+    // Shared by the text and price inputs: restart the timer on every keystroke;
+    // only the last one within 400 ms writes the filters to the URL (which reloads the list)
+    private async Task DebouncedNavigateAsync()
+    {
         _debounce?.Cancel();
         _debounce?.Dispose();
         _debounce = new CancellationTokenSource();
@@ -223,7 +286,17 @@
         }
 
         _syncedSearch = _search;
+        _syncedMinPrice = _minPriceText.Trim();
+        _syncedMaxPrice = _maxPriceText.Trim();
         NavigateToState(page: 1);
+    }
+
+    private void OnSortChanged(ChangeEventArgs e)
+    {
+        // Value looks like "price-desc"; anything unexpected falls back to name ascending
+        var parts = (e.Value?.ToString() ?? string.Empty).Split('-');
+        var sortBy = parts[0] is "price" or "stock" ? parts[0] : "name";
+        NavigateToState(page: 1, sortBy: sortBy, descending: parts.Length > 1 && parts[1] == "desc");
     }
 
     private void OnCategoryChanged(ChangeEventArgs e)
@@ -266,6 +339,8 @@
         {
             ["search"] = search.Length > 0 ? search : null,
             ["categoryId"] = category,
+            ["minPrice"] = _minPriceText.Trim().Length > 0 ? _minPriceText.Trim() : null,
+            ["maxPrice"] = _maxPriceText.Trim().Length > 0 ? _maxPriceText.Trim() : null,
             ["sortBy"] = sort == "name" ? null : sort,
             ["sortDir"] = desc ? "desc" : null,
             ["page"] = page > 1 ? page : null,
@@ -281,8 +356,20 @@
     {
         // Responses can arrive out of order; only the newest request may update the table
         var requestId = ++_requestId;
-        _isLoading = true;
         _error = null;
+
+        // The API would answer 400 for an inverted range, so say so here instead of sending the request
+        if (_minPrice is { } min && _maxPrice is { } max && min > max)
+        {
+            _products = new();
+            _totalCount = 0;
+            _error = "Giá từ không được lớn hơn giá đến";
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _isLoading = true;
         StateHasChanged();
 
         try
@@ -339,11 +426,12 @@
 
     private string BuildUrl()
     {
-        var url = $"api/products/search?page={_page}&pageSize={_pageSize}&sortBy={_sortBy}&sortDir={(_descending ? "desc" : "asc")}";
+        // Only filters that have a value are sent, matching the API's "apply only when given" rule
+        var url = $"api/products?page={_page}&pageSize={_pageSize}&sortBy={_sortBy}&sortDescending={(_descending ? "true" : "false")}";
 
         if (!string.IsNullOrWhiteSpace(_search))
         {
-            url += $"&search={Uri.EscapeDataString(_search.Trim())}";
+            url += $"&keyword={Uri.EscapeDataString(_search.Trim())}";
         }
 
         if (_categoryId is not null)
@@ -351,8 +439,25 @@
             url += $"&categoryId={_categoryId}";
         }
 
+        if (_minPrice is { } min)
+        {
+            url += $"&minPrice={min.ToString(CultureInfo.InvariantCulture)}";
+        }
+
+        if (_maxPrice is { } max)
+        {
+            url += $"&maxPrice={max.ToString(CultureInfo.InvariantCulture)}";
+        }
+
         return url;
     }
+
+    // Unparsable or empty input counts as "no bound"
+    private decimal? _minPrice => ParsePrice(_minPriceText);
+    private decimal? _maxPrice => ParsePrice(_maxPriceText);
+
+    private static decimal? ParsePrice(string text) =>
+        decimal.TryParse(text.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var value) ? value : null;
 
     private void RedirectToLogin()
     {

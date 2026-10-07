@@ -1,3 +1,4 @@
+using SalesInventory.Application.Dtos;
 using SalesInventory.Domain.Entities;
 
 namespace SalesInventory.Application.Interfaces;
@@ -19,4 +20,8 @@ public interface IProductRepository : IRepository<Product>
     // sortBy is "name" or "price" (sale price); filtering, ordering and paging all happen in SQL (read-only).
     Task<(IReadOnlyList<Product> Items, int TotalCount)> SearchAsync(
         string? search, int? categoryId, string sortBy, bool descending, int page, int pageSize);
+
+    // One page of compact product rows for GET /api/products: optional keyword/category/price filters,
+    // whitelisted sorting and paging, all in SQL and projected straight to the DTO (read-only).
+    Task<(IReadOnlyList<ProductListItemDto> Items, int TotalCount)> QueryAsync(ProductQueryParameters query);
 }

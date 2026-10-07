@@ -39,7 +39,39 @@ public class CatalogApi
         }
     }
 
-    public Task<List<ProductItem>?> GetProductsAsync() => GetListAsync<ProductItem>("api/products");
+    /// <summary>Every product, fetched page by page because GET /api/products is paged (max 100 per page).</summary>
+    public async Task<List<ProductItem>?> GetProductsAsync()
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient(ApiClient.Name);
+            var all = new List<ProductItem>();
+            for (var page = 1; ; page++)
+            {
+                var response = await client.GetAsync($"api/products?page={page}&pageSize=100");
+                if (!response.IsSuccessStatusCode)
+                {
+                    return null;
+                }
+
+                var result = await response.Content.ReadFromJsonAsync<PagedResponse<ProductItem>>();
+                if (result is null)
+                {
+                    return null;
+                }
+
+                all.AddRange(result.Items);
+                if (result.Items.Count == 0 || all.Count >= result.TotalCount)
+                {
+                    return all;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
 
     private async Task<List<T>?> GetListAsync<T>(string url)
     {

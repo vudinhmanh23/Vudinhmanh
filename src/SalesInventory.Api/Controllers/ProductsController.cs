@@ -62,18 +62,28 @@ public class ProductsController : ControllerBase
         _supplierService = supplierService;
     }
 
-    /// <summary>Gets all products.</summary>
+    /// <summary>
+    /// Gets one page of products. Filters (keyword in name/SKU/description, categoryId, minPrice, maxPrice) apply only
+    /// when given; sortBy: name | price | stock (anything else sorts by name); pageSize defaults to 20, max 100.
+    /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts()
+    public async Task<ActionResult<PagedResult<ProductListItemDto>>> GetProducts([FromQuery] ProductQueryParameters query)
     {
-        var products = await _productService.GetProductsAsync();
-        var categories = await _categoryService.GetCategoriesAsync();
-        var categoryNamesById = categories.ToDictionary(c => c.Id, c => c.Name);
+        if (query.MinPrice is not null && query.MaxPrice is not null && query.MinPrice > query.MaxPrice)
+        {
+            ModelState.AddModelError(nameof(query.MinPrice), "minPrice must not be greater than maxPrice.");
+            return ValidationProblem(ModelState);
+        }
 
-        var suppliers = await _supplierService.GetSuppliersAsync();
-        var supplierNamesById = suppliers.ToDictionary(s => s.Id, s => s.Name);
+        var (items, totalCount) = await _productService.QueryProductsAsync(query);
 
-        return Ok(products.Select(p => ToDto(p, categoryNamesById.GetValueOrDefault(p.CategoryId), SupplierName(p, supplierNamesById))));
+        return Ok(new PagedResult<ProductListItemDto>
+        {
+            Items = items,
+            Page = query.Page,
+            PageSize = query.PageSize,
+            TotalCount = totalCount
+        });
     }
 
     /// <summary>

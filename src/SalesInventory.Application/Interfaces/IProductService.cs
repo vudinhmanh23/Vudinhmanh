@@ -1,3 +1,4 @@
+using SalesInventory.Application.Dtos;
 using SalesInventory.Domain.Entities;
 
 namespace SalesInventory.Application.Interfaces;
@@ -19,6 +20,8 @@ public interface IProductService
     // One page of products for list screens; see IProductRepository.SearchAsync for the parameters
     Task<(IReadOnlyList<Product> Items, int TotalCount)> SearchProductsAsync(
         string? search, int? categoryId, string sortBy, bool descending, int page, int pageSize);
+    // One page of compact product rows with optional filters and whitelisted sorting
+    Task<(IReadOnlyList<ProductListItemDto> Items, int TotalCount)> QueryProductsAsync(ProductQueryParameters query);
     Task<bool> IsSkuTakenAsync(string sku, int? excludeProductId);
     Task<bool> IsBarcodeTakenAsync(string barcode, int? excludeProductId);
     Task<IEnumerable<Product>> GetProductsByCategoryIdAsync(int categoryId);

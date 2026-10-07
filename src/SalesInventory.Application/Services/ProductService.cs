@@ -1,3 +1,4 @@
+using SalesInventory.Application.Dtos;
 using SalesInventory.Domain.Entities;
 using SalesInventory.Application.Interfaces;
 
@@ -47,6 +48,11 @@ public class ProductService : IProductService
         string? search, int? categoryId, string sortBy, bool descending, int page, int pageSize)
     {
         return await _productQueries.SearchAsync(search, categoryId, sortBy, descending, page, pageSize);
+    }
+
+    public async Task<(IReadOnlyList<ProductListItemDto> Items, int TotalCount)> QueryProductsAsync(ProductQueryParameters query)
+    {
+        return await _productQueries.QueryAsync(query);
     }
 
     public async Task<InventorySummary> GetInventorySummaryAsync()

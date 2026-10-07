@@ -56,7 +56,8 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new BusinessRuleException("A purchase order must contain at least one item.");
         }
 
-        if (items.Sum(i => i.Quantity) <= 0)
+        // long arithmetic: adding up large quantities as ints would throw OverflowException (an HTTP 500)
+        if (items.Sum(i => (long)i.Quantity) <= 0)
         {
             throw new BusinessRuleException("Total quantity of a purchase order must be greater than 0.");
         }
@@ -129,6 +130,19 @@ public class PurchaseOrderService : IPurchaseOrderService
         try
         {
             var now = DateTime.UtcNow;
+
+            // Refuse BEFORE changing anything if a product's stock would no longer fit in an int: unchecked, the addition wraps
+            // around to a NEGATIVE stock. Lines of the same product are added up first, as they are applied together.
+            foreach (var group in order.PurchaseOrderItems.GroupBy(i => i.ProductId))
+            {
+                var target = group.First().Product
+                    ?? throw new InvalidOperationException($"Product {group.Key} of purchase order {order.Id} is missing.");
+                if ((long)target.StockQuantity + group.Sum(i => (long)i.Quantity) > int.MaxValue)
+                {
+                    throw new BusinessRuleException(
+                        $"Không thể duyệt phiếu nhập {order.Code}: tồn kho của sản phẩm {target.Name} (Id {target.Id}) sẽ vượt giới hạn {int.MaxValue}.");
+                }
+            }
 
             // One stock increase and one Purchase movement for EVERY line (the products are tracked via Include)
             foreach (var item in order.PurchaseOrderItems)

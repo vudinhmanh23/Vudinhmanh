@@ -1,6 +1,6 @@
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using SalesInventory.Infrastructure.Security;
 
 namespace SalesInventory.Infrastructure.Ai;
 
@@ -11,78 +11,26 @@ namespace SalesInventory.Infrastructure.Ai;
 // A prompt is only a request to the model; these checks run on the server and cannot be talked out of anything.
 public sealed class PromptGuard
 {
-    public const string Mask = "[đã ẩn]";
-
-    // A secret shorter than this is ignored: masking short strings would damage ordinary text
-    private const int MinSecretLength = 8;
+    public const string Mask = SecretMasker.MaskText;
 
     // The system prompt counts as leaked when the output repeats this many characters of it in a row. It is long enough
     // that the fixed sentences the prompt tells the assistant to say (about 70 characters) do not trigger it.
     public const int LeakWindow = 120;
 
-    // Configuration keys that hold secrets, matched by name so a secret added later is covered without changing this class
-    private static readonly Regex SecretKeyName = new(
-        @"(api_?key|secret|password|pwd|token|connectionstring|:key$|^key$|^connectionstrings:)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    // Secrets that are recognisable by their shape even when they are not configured here
-    private static readonly Regex[] Shapes =
-    {
-        new(@"sk-ant-[A-Za-z0-9_\-]{20,}", RegexOptions.Compiled),
-        new(@"(?i)\b(password|pwd)\s*=\s*[^;\s]+", RegexOptions.Compiled)
-    };
-
-    private readonly string[] _secrets;
+    // The rule for what is a secret lives in SecretMasker (it also protects the log files)
+    private readonly SecretMasker _masker;
 
     public PromptGuard(IConfiguration configuration, IOptions<AnthropicOptions> anthropic, IOptions<EmbeddingOptions> embeddings)
     {
-        var found = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var (key, value) in configuration.AsEnumerable())
-        {
-            if (!string.IsNullOrEmpty(value) && SecretKeyName.IsMatch(key))
-            {
-                found.Add(value);
-            }
-        }
-
         // The options also get values from places such as the ANTHROPIC_API_KEY environment variable
-        found.Add(anthropic.Value.ApiKey ?? string.Empty);
-        found.Add(embeddings.Value.ApiKey ?? string.Empty);
-
-        // Longest first, so a secret that contains another one is masked as a whole
-        _secrets = found.Where(s => s.Length >= MinSecretLength).OrderByDescending(s => s.Length).ToArray();
+        _masker = new SecretMasker(configuration, anthropic.Value.ApiKey, embeddings.Value.ApiKey);
     }
 
     // The text with every known secret (and anything shaped like one) replaced by a mask
-    public string Scrub(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return text;
-        }
-
-        foreach (var secret in _secrets)
-        {
-            if (text.Contains(secret, StringComparison.Ordinal))
-            {
-                text = text.Replace(secret, Mask, StringComparison.Ordinal);
-            }
-        }
-
-        foreach (var shape in Shapes)
-        {
-            text = shape.Replace(text, Mask);
-        }
-
-        return text;
-    }
+    public string Scrub(string text) => _masker.Scrub(text);
 
     // True when the text still holds a configured secret (used on the system prompt, which must never contain one)
-    public bool ContainsSecret(string text)
-    {
-        return _secrets.Any(secret => text.Contains(secret, StringComparison.Ordinal));
-    }
+    public bool ContainsSecret(string text) => _masker.ContainsSecret(text);
 
     // While streaming, a secret can arrive split across two pieces. This is how many characters at the end of `pending` must be
     // kept back for now: the longest tail that could be the beginning of a secret, or that is still part of a run copied from the
@@ -91,7 +39,7 @@ public sealed class PromptGuard
     {
         var hold = 0;
 
-        foreach (var secret in _secrets)
+        foreach (var secret in _masker.Secrets)
         {
             for (var length = Math.Min(pending.Length, secret.Length - 1); length > hold; length--)
             {

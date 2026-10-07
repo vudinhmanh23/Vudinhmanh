@@ -1,6 +1,6 @@
 # CHƯƠNG 3. THIẾT KẾ HỆ THỐNG
 
-> **Quy ước đối chiếu.** Mọi tên lớp, tên file và route trong chương này lấy từ mã nguồn của nhánh `feat/stock-ledger-and-race-safety`. Đường dẫn tính từ thư mục gốc của solution.
+> **Quy ước đối chiếu.** Mọi tên lớp, tên file và route trong chương này lấy từ mã nguồn của nhánh `main`. Đường dẫn tính từ thư mục gốc của solution.
 
 ## 3.1. Kiến trúc tổng thể
 

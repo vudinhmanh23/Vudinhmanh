@@ -274,7 +274,7 @@ Thư mục `docs/` có `SRS.md` và `BACKLOG.md` soạn từ đầu dự án. Ha
 
 # CHƯƠNG 3. THIẾT KẾ HỆ THỐNG
 
-> **Quy ước đối chiếu.** Mọi tên lớp, tên file và route trong chương này lấy từ mã nguồn của nhánh `feat/stock-ledger-and-race-safety`. Đường dẫn tính từ thư mục gốc của solution.
+> **Quy ước đối chiếu.** Mọi tên lớp, tên file và route trong chương này lấy từ mã nguồn của nhánh `main`. Đường dẫn tính từ thư mục gốc của solution.
 
 ## 3.1. Kiến trúc tổng thể
 
@@ -984,7 +984,7 @@ Các điểm khác từng cần đối chiếu đã được giải quyết bằ
 
 # CHƯƠNG 4. CÀI ĐẶT VÀ CÔNG NGHỆ
 
-> **Quy ước đối chiếu.** Phiên bản thư viện lấy từ các file `.csproj`; tên lớp, tên file lấy từ nhánh `feat/stock-ledger-and-race-safety`. Đường dẫn tính từ thư mục gốc của solution. Chương này chỉ mô tả những gì có trong mã nguồn; những điểm chưa làm được nằm ở Chương 8.
+> **Quy ước đối chiếu.** Phiên bản thư viện lấy từ các file `.csproj`; tên lớp, tên file lấy từ nhánh `main`. Đường dẫn tính từ thư mục gốc của solution. Chương này chỉ mô tả những gì có trong mã nguồn; những điểm chưa làm được nằm ở Chương 8.
 
 ## 4.1. Công nghệ và phiên bản
 
@@ -1223,7 +1223,7 @@ Bảy trang sau chỉ có tiêu đề (và nút điều hướng) mà **chưa c�
 
 # CHƯƠNG 5. KIỂM THỬ
 
-> **Nguồn số liệu.** Các con số trong chương lấy từ một lần chạy `dotnet test` toàn solution ngày 07/10/2026, trên nhánh `feat/stock-ledger-and-race-safety`, Docker đang chạy. Cần chạy lại và cập nhật số liệu nếu code hoặc test thay đổi trước khi nộp. Tên lớp test lấy từ thư mục `tests/`.
+> **Nguồn số liệu.** Các con số trong chương lấy từ một lần chạy `dotnet test` toàn solution ngày 07/10/2026, trên nhánh `main`, Docker đang chạy. Cần chạy lại và cập nhật số liệu nếu code hoặc test thay đổi trước khi nộp. Tên lớp test lấy từ thư mục `tests/`.
 
 ## 5.1. Chiến lược kiểm thử
 

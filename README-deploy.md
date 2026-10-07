@@ -55,7 +55,7 @@ Bảng đầy đủ hơn (kể cả Azure) nằm trong `CLAUDE.md`.
 
 ## 3. Lấy mã nguồn
 ```bash
-git clone -b feat/stock-ledger-and-race-safety https://github.com/vudinhmanh23/Vudinhmanh.git sales-inventory
+git clone https://github.com/vudinhmanh23/Vudinhmanh.git sales-inventory
 cd sales-inventory
 ls          # phải có docker-compose.yml và .env.example, KHÔNG có .env
 ```

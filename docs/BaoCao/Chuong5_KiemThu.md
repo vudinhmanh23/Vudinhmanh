@@ -1,6 +1,6 @@
 # CHƯƠNG 5. KIỂM THỬ
 
-> **Nguồn số liệu.** Các con số trong chương lấy từ một lần chạy `dotnet test` toàn solution ngày 07/10/2026, trên nhánh `feat/stock-ledger-and-race-safety`, Docker đang chạy. Cần chạy lại và cập nhật số liệu nếu code hoặc test thay đổi trước khi nộp. Tên lớp test lấy từ thư mục `tests/`.
+> **Nguồn số liệu.** Các con số trong chương lấy từ một lần chạy `dotnet test` toàn solution ngày 07/10/2026, trên nhánh `main`, Docker đang chạy. Cần chạy lại và cập nhật số liệu nếu code hoặc test thay đổi trước khi nộp. Tên lớp test lấy từ thư mục `tests/`.
 
 ## 5.1. Chiến lược kiểm thử
 

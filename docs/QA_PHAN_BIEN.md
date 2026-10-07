@@ -1,6 +1,6 @@
 # 15 câu hỏi phản biện và gợi ý trả lời
 
-**Cách dùng.** Mỗi câu có gợi ý trả lời 3-4 câu và bằng chứng trong code (đường dẫn kèm số dòng). Số dòng đúng tại thời điểm viết (07/10/2026, nhánh `feat/stock-ledger-and-race-safety`, chưa commit các thay đổi mới nhất); mở lại file trước khi bảo vệ để chắc chắn. Các câu trả lời chỉ nói những gì code có, không hứa tính năng chưa làm. Nhóm 5 có chỗ `[điền]` vì quy trình làm việc cá nhân của bạn không nằm trong code, bạn phải tự điền sự thật.
+**Cách dùng.** Mỗi câu có gợi ý trả lời 3-4 câu và bằng chứng trong code (đường dẫn kèm số dòng). Số dòng đúng tại thời điểm viết (07/10/2026, nhánh `main` sau khi merge PR #3; có thể lệch nếu mã đổi sau đó); mở lại file trước khi bảo vệ để chắc chắn. Các câu trả lời chỉ nói những gì code có, không hứa tính năng chưa làm. Nhóm 5 có chỗ `[điền]` vì quy trình làm việc cá nhân của bạn không nằm trong code, bạn phải tự điền sự thật.
 
 **Số liệu dùng trong câu trả lời** (lần chạy `dotnet test` ngày 07/10/2026): 649 test, 648 đạt, 0 lỗi, 1 bỏ qua. Chạy lại trước khi bảo vệ.
 

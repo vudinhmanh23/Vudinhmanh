@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -29,13 +30,15 @@ public class AssistantController : ControllerBase
     [EnableRateLimiting("assistant")]
     public async Task<ActionResult<AskResponseDto>> Ask(AskRequestDto request, CancellationToken cancellationToken)
     {
-        var answer = await _chatService.AskAsync(request.Question, cancellationToken);
+        var caller = new ChatCaller(User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList());
+        var answer = await _chatService.AskAsync(request.Question, caller, cancellationToken);
         return Ok(new AskResponseDto
         {
             Answer = answer.Answer,
             ModelTier = answer.ModelTier,
             InputTokens = answer.InputTokens,
-            OutputTokens = answer.OutputTokens
+            OutputTokens = answer.OutputTokens,
+            ToolsUsed = answer.ToolsUsed.ToList()
         });
     }
 }

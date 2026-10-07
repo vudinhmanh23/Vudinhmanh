@@ -38,6 +38,9 @@ public class AnthropicOptions
     // Questions one signed-in user may send per minute (the endpoint costs money per call)
     public int RequestsPerMinute { get; set; } = 10;
 
+    // How many times the model may ask for tools before the assistant stops and answers with what it has
+    public int MaxToolRounds { get; set; } = 4;
+
     // Resolves ModelTier to a model id, or null when the tier is unknown or has no id configured
     public string? ResolveModel()
     {

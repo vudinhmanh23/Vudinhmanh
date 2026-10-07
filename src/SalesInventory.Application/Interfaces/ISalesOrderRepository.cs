@@ -11,6 +11,9 @@ public interface ISalesOrderRepository : IRepository<SalesOrder>
 
     Task<SalesOrder?> GetWithItemsAsync(int id);
 
+    // One order by its human-readable number (e.g. SO-20261006-0001); read-only, only the columns an order summary needs
+    Task<SalesOrder?> GetByOrderNumberAsync(string orderNumber);
+
     // One customer's orders with items, newest first
     Task<IReadOnlyList<SalesOrder>> GetByCustomerWithItemsAsync(int customerId);
 

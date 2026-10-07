@@ -190,6 +190,22 @@ Quy ước chung cho mọi tool:
 Ghi chú: ma trận vai trò ở trên cố ý **khớp** với quyền của API tương ứng (ví dụ doanh thu và lịch sử sổ kho chỉ Kho/Admin như
 policy `CanManageInventory`), để trợ lý không thành đường vòng lấy dữ liệu mà người dùng không được xem trực tiếp.
 
+### 4.1 Các tool đã triển khai (phiên bản đầu)
+
+Phiên bản đầu chỉ cài ba tool đọc, đủ để trợ lý trả lời số liệu thật thay vì bịa. Chúng nằm trong `Application/Assistant/` và được
+vòng lặp tool use của `AnthropicChatService` gọi.
+
+| Tool | Tham số vào | Dữ liệu trả về | Hàm .NET |
+|---|---|---|---|
+| `get_stock` | `sku` hoặc `product_name` (ít nhất một) | `sku`, `name`, `stockQuantity`, `unit`, `status` (còn hàng / sắp hết / hết hàng), `discontinued`; nếu tên khớp nhiều sản phẩm: `ambiguous` + tối đa 5 `candidates` | `ProductService.GetProductBySkuAsync` / `QueryProductsAsync` |
+| `get_price` | `sku` hoặc `product_name` | `sku`, `name`, `salePrice`, `salePriceFormatted` (không bao giờ có giá nhập) | như trên |
+| `get_order_status` | `order_code` | `orderCode`, `status` (Hoàn thành / Đã hủy), `orderDate`, `totalAmount`, `totalFormatted`, `itemCount` (không có thông tin khách) | `SalesOrderService.GetOrderByNumberAsync` |
+
+Vòng lặp: gửi câu hỏi và danh sách tool (theo vai trò) → nếu model trả `tool_use`, server chạy tool tuần tự, ghép **một** tin nhắn
+chứa mọi `tool_result` (kèm nguyên văn lượt trả lời của model, gồm cả khối suy nghĩ) → gửi lại, tối đa `Anthropic:MaxToolRounds` vòng.
+Tool lạ, không đủ quyền hoặc bị lỗi được báo cho model dưới dạng `tool_result` có `is_error`, không làm hỏng yêu cầu.
+Hạn chế đã biết: tìm theo tên chưa bỏ qua dấu tiếng Việt (gõ "ban phim co" sẽ không khớp "Bàn phím cơ").
+
 ## 5. An toàn và chi phí
 
 ### 5.1 Quản lý API key

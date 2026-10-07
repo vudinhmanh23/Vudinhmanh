@@ -52,6 +52,11 @@ public class ProductRepository : Repository<Product>, IProductRepository
         return await _context.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Sku == sku);
     }
 
+    public async Task<Product?> GetByIdReadOnlyAsync(int id)
+    {
+        return await _context.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+    }
+
     public async Task<IReadOnlyList<Product>> GetInactiveAsync()
     {
         return await _context.Products.AsNoTracking().Where(p => !p.IsActive).ToListAsync();

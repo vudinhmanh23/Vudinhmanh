@@ -17,6 +17,9 @@ public interface ISalesOrderService
     Task<int> CountOrdersAsync();
     Task<SalesOrder?> GetOrderAsync(int id);
 
+    // Summary of one order looked up by its order number (status, total, date, line count); null when it does not exist
+    Task<SalesOrder?> GetOrderByNumberAsync(string orderNumber);
+
     // Sales history of one customer, newest first (empty when the customer has no orders)
     Task<IReadOnlyList<SalesOrder>> GetOrdersByCustomerAsync(int customerId);
 

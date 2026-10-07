@@ -8,6 +8,9 @@ public interface IProductService
 {
     Task<IEnumerable<Product>> GetProductsAsync();
     Task<Product?> GetProductAsync(int id);
+
+    // Same lookup for read-only callers: the entity is not tracked by EF Core
+    Task<Product?> GetProductReadOnlyAsync(int id);
     Task<Product?> GetProductBySkuAsync(string sku);
     Task<IEnumerable<Product>> GetInactiveProductsAsync();
 

@@ -92,6 +92,25 @@ public class SalesOrderRepository : Repository<SalesOrder>, ISalesOrderRepositor
             .FirstOrDefaultAsync();
     }
 
+    public async Task<SalesOrder?> GetByOrderNumberAsync(string orderNumber)
+    {
+        // Summary only: no customer and no product names, just the line count
+        return await _context.SalesOrders
+            .AsNoTracking()
+            .Where(o => o.OrderNumber == orderNumber)
+            .Select(o => new SalesOrder
+            {
+                Id = o.Id,
+                OrderNumber = o.OrderNumber,
+                OrderDate = o.OrderDate,
+                DiscountAmount = o.DiscountAmount,
+                TotalAmount = o.TotalAmount,
+                Status = o.Status,
+                Items = o.Items.Select(i => new SalesOrderItem { Id = i.Id, Quantity = i.Quantity }).ToList()
+            })
+            .FirstOrDefaultAsync();
+    }
+
     public async Task<string?> GetLastOrderNumberWithPrefixAsync(string prefix)
     {
         // Longest first so a 5-digit sequence sorts after a 4-digit one

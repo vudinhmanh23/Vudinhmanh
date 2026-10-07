@@ -57,6 +57,11 @@ public class SalesOrderService : ISalesOrderService
         return await _orderRepository.GetWithItemsAsync(id);
     }
 
+    public async Task<SalesOrder?> GetOrderByNumberAsync(string orderNumber)
+    {
+        return await _orderRepository.GetByOrderNumberAsync(orderNumber);
+    }
+
     public async Task<CreateSalesOrderResult> CreateOrderAsync(SalesOrder order)
     {
         var items = order.Items.ToList();

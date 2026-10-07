@@ -19,4 +19,7 @@ public class AskResponseDto
     public int InputTokens { get; set; }
 
     public int OutputTokens { get; set; }
+
+    // Names of the tools the assistant used to look up real data for this answer (empty when none)
+    public List<string> ToolsUsed { get; set; } = new();
 }

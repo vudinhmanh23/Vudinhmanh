@@ -27,6 +27,11 @@ public class ProductService : IProductService
         return await _productRepository.GetByIdAsync(id);
     }
 
+    public async Task<Product?> GetProductReadOnlyAsync(int id)
+    {
+        return await _productQueries.GetByIdReadOnlyAsync(id);
+    }
+
     public async Task<Product?> GetProductBySkuAsync(string sku)
     {
         return await _productQueries.GetBySkuAsync(sku);

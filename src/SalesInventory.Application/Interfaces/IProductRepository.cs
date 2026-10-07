@@ -15,6 +15,7 @@ public interface IProductRepository : IRepository<Product>
 
     // Single-row and filtered reads done in SQL (read-only, not tracked); Sku is matched case-insensitively by the column collation
     Task<Product?> GetBySkuAsync(string sku);
+    Task<Product?> GetByIdReadOnlyAsync(int id);
     Task<IReadOnlyList<Product>> GetInactiveAsync();
     Task<IReadOnlyList<Product>> GetByCategoryAsync(int categoryId);
 

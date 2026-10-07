@@ -25,7 +25,11 @@ public class AuthController : ControllerBase
         _tokenService = tokenService;
     }
 
-    /// <summary>Registers a new user account.</summary>
+    /// <summary>
+    /// Registers a new user account. Anyone may register, but only with the default, least-privileged role (BanHang).
+    /// Any other role (Admin, Kho) can be requested only by a signed-in Admin; staff accounts are normally created with
+    /// POST /api/admin/users instead.
+    /// </summary>
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterDto dto)
     {
@@ -33,6 +37,16 @@ public class AuthController : ControllerBase
         if (!AllowedRoles.Contains(role))
         {
             return BadRequest($"Role must be one of: {string.Join(", ", AllowedRoles)}");
+        }
+
+        // Without this check a stranger could register as Admin. The bearer token (if any) has already been read by the
+        // authentication middleware, so User is the caller's identity here.
+        if (role != DefaultRole && !User.IsInRole(AppRoles.Admin))
+        {
+            return Problem(
+                title: "Không đủ quyền",
+                detail: $"Chỉ Admin mới được tạo tài khoản với vai trò {role}.",
+                statusCode: StatusCodes.Status403Forbidden);
         }
 
         var user = new ApplicationUser { UserName = dto.Email, Email = dto.Email, FullName = dto.FullName };

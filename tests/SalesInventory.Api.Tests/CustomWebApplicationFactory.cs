@@ -27,6 +27,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Every test host starts with one Admin: AuthTestHelper needs it to create Admin/Kho accounts, because the public
+        // register endpoint no longer hands those roles to strangers. Set before ConfigureExtraSettings so a subclass can override it.
+        builder.UseSetting("SeedAdmin:Email", AuthTestHelper.SeedAdminEmail);
+        builder.UseSetting("SeedAdmin:Password", AuthTestHelper.SeedAdminPassword);
+
         ConfigureExtraSettings(builder);
 
         // Log files of the test hosts go to the temp folder, not next to the test binaries (index 1 = the File sink of appsettings.json)

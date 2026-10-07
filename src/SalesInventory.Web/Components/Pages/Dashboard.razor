@@ -1,0 +1,255 @@
+@page "/dashboard"
+@using System.Globalization
+@using System.Net
+@using SalesInventory.Web.Models
+@inject IHttpClientFactory HttpClientFactory
+@inject ToastService Toast
+@inject TokenStore Tokens
+@inject NavigationManager Navigation
+
+<PageTitle>Dashboard - SalesInventory</PageTitle>
+
+<div class="page-header">
+    <h1>Dashboard</h1>
+</div>
+
+<div class="period">
+    <label>Từ ngày
+        <input type="date" class="form-control" value="@_from.ToString(DateFormat)" @onchange="OnFromChanged" />
+    </label>
+    <label>Đến ngày
+        <input type="date" class="form-control" value="@_to.ToString(DateFormat)" @onchange="OnToChanged" />
+    </label>
+</div>
+
+@if (_error is not null)
+{
+    @* The toast disappears after a few seconds; this box stays so the user still sees what went wrong *@
+    <div class="alert alert-danger d-flex align-items-center justify-content-between" role="alert">
+        <span>@_error</span>
+        <button type="button" class="btn btn-outline-danger btn-sm" disabled="@_isLoading" @onclick="LoadAsync">Thử lại</button>
+    </div>
+}
+
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-label">Doanh thu</div>
+        <div class="kpi-value">@Display(_summary is null ? null : $"{_summary.TotalRevenue.ToString("N0", ViCulture)} ₫")</div>
+        @if (!_isLoading && _summary is not null)
+        {
+            @* Change vs the previous period of the same length; the server computes it (null when it is undefined) *@
+            @if (_summary.RevenueChangePercent is { } change)
+            {
+                <div class="kpi-delta @(change > 0 ? "up" : change < 0 ? "down" : "flat")"
+                     title="Kỳ trước: @(_summary.PreviousPeriodRevenue?.ToString("N0", ViCulture)) ₫">
+                    @(change > 0 ? "▲" : change < 0 ? "▼" : "■") @(Math.Abs(change).ToString("0.#", ViCulture))% so với kỳ trước
+                </div>
+            }
+            else
+            {
+                <div class="kpi-delta flat">Chưa có dữ liệu kỳ trước để so sánh</div>
+            }
+        }
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Số đơn bán</div>
+        <div class="kpi-value">@Display(_summary?.OrderCount.ToString("N0", ViCulture))</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Giá trị đơn trung bình</div>
+        <div class="kpi-value">@Display(_summary is null ? null : $"{_summary.AverageOrderValue.ToString("N0", ViCulture)} ₫")</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Giá trị tồn kho</div>
+        <div class="kpi-value">@Display(_summary is null ? null : $"{_summary.InventoryValue.ToString("N0", ViCulture)} ₫")</div>
+    </div>
+    <div class="kpi-card kpi-warning">
+        <div class="kpi-label">Cảnh báo hết hàng</div>
+        <div class="kpi-value">@Display(_summary?.LowStockCount.ToString("N0", ViCulture))</div>
+    </div>
+</div>
+
+<h2 class="alerts-title">Cảnh báo quan trọng</h2>
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th>Sản phẩm</th>
+            <th class="text-end">Tồn còn lại</th>
+            <th class="text-end">Ngưỡng cảnh báo</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (_isLoading)
+        {
+            <tr>
+                <td colspan="3">
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Đang tải…
+                </td>
+            </tr>
+        }
+        else if (_error is null && _alerts.Count == 0)
+        {
+            <tr><td colspan="3">Không có sản phẩm nào sắp hết hàng</td></tr>
+        }
+        else
+        {
+            @foreach (var item in _alerts)
+            {
+                <tr>
+                    <td><a href="products/@item.Id/edit">@item.Name</a></td>
+                    <td class="text-end @(item.StockQuantity == 0 ? "text-danger fw-bold" : null)">@item.StockQuantity</td>
+                    <td class="text-end">@item.LowStockThreshold</td>
+                </tr>
+            }
+        }
+    </tbody>
+</table>
+
+@code {
+    private const string DateFormat = "yyyy-MM-dd";
+    private const int DefaultPeriodDays = 30;
+    private const int AlertLimit = 10;
+    private static readonly CultureInfo ViCulture = new("vi-VN");
+
+    // Default period: exactly the last 30 days, today included (from = today - 29)
+    private DateTime _from = DateTime.Today.AddDays(-(DefaultPeriodDays - 1));
+    private DateTime _to = DateTime.Today;
+
+    private DashboardSummary? _summary;
+    private List<LowStockAlert> _alerts = new();
+
+    private bool _isLoading = true;
+    private bool _redirecting;
+    private string? _error;
+
+    // Responses can arrive out of order when the dates change quickly; only the newest request may update the page
+    private int _requestId;
+
+    // Placeholder shown on a card while loading or after a failed load
+    private string Display(string? value) => _isLoading || value is null ? "—" : value;
+
+    // Session storage needs JS interop, so load after the first interactive render
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // No token at all means the user has not logged in
+        if (string.IsNullOrEmpty(await Tokens.GetAsync()))
+        {
+            RedirectToLogin();
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task OnFromChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParseExact(e.Value?.ToString(), DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var from))
+        {
+            _from = from;
+            await LoadAsync();
+        }
+    }
+
+    private async Task OnToChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParseExact(e.Value?.ToString(), DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var to))
+        {
+            _to = to;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var requestId = ++_requestId;
+        _error = null;
+
+        // The API answers 400 for an inverted range, so say so here instead of sending the request
+        if (_from > _to)
+        {
+            _summary = null;
+            _alerts = new();
+            _error = "Ngày bắt đầu không được sau ngày kết thúc";
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient(ApiClient.Name);
+            var summaryTask = client.GetAsync($"api/dashboard/summary?from={_from.ToString(DateFormat)}&to={_to.ToString(DateFormat)}");
+            var alertsTask = client.GetAsync($"api/dashboard/low-stock-items?limit={AlertLimit}");
+            await Task.WhenAll(summaryTask, alertsTask);
+
+            if (requestId != _requestId)
+            {
+                return;
+            }
+
+            var summaryResponse = summaryTask.Result;
+            var alertsResponse = alertsTask.Result;
+
+            if (summaryResponse.StatusCode == HttpStatusCode.Unauthorized || alertsResponse.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                // Token expired or rejected; AuthMessageHandler has already cleared it
+                RedirectToLogin();
+                return;
+            }
+
+            if (summaryResponse.StatusCode == HttpStatusCode.Forbidden || alertsResponse.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _error = "Bạn không có quyền xem dashboard";
+                return;
+            }
+
+            if (!summaryResponse.IsSuccessStatusCode || !alertsResponse.IsSuccessStatusCode)
+            {
+                _error = "Không thể tải dashboard. Vui lòng thử lại sau";
+                Toast.ShowError(_error);
+                return;
+            }
+
+            var summary = await summaryResponse.Content.ReadFromJsonAsync<DashboardSummary>();
+            var alerts = await alertsResponse.Content.ReadFromJsonAsync<List<LowStockAlert>>();
+            if (requestId != _requestId)
+            {
+                return;
+            }
+
+            _summary = summary;
+            _alerts = alerts ?? new();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            if (requestId == _requestId)
+            {
+                _error = "Không kết nối được máy chủ, vui lòng thử lại";
+                Toast.ShowError(_error);
+            }
+        }
+        finally
+        {
+            // Keep showing "loading" while navigating away, instead of flashing empty cards
+            if (requestId == _requestId)
+            {
+                _isLoading = _redirecting;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void RedirectToLogin()
+    {
+        _redirecting = true;
+        Navigation.NavigateTo("/login");
+    }
+}

@@ -50,6 +50,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             // Unique only among non-null values: EF adds the filter "[Barcode] IS NOT NULL" for SQL Server
             entity.Property(p => p.Barcode).HasMaxLength(50);
             entity.HasIndex(p => p.Barcode).IsUnique();
+            // Dashboard: covers the stock-value / low-stock aggregate and the alert list, so SQL Server reads this narrow
+            // index instead of scanning the wide product rows (description, image URL, ...)
+            entity.HasIndex(p => p.StockQuantity)
+                .IncludeProperties(p => new { p.IsActive, p.LowStockThreshold, p.PurchasePrice, p.Name });
             entity.Property(p => p.Description).HasMaxLength(1000);
             entity.Property(p => p.Unit).IsRequired().HasMaxLength(50).HasDefaultValue("cái");
             entity.Property(p => p.Price).HasColumnType("decimal(18,2)");
@@ -110,6 +114,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.Property(o => o.OrderNumber).IsRequired().HasMaxLength(30);
             entity.HasIndex(o => o.OrderNumber).IsUnique();
+            // Dashboard: completed orders in a date range; TotalAmount is included so SUM never touches the table rows
+            entity.HasIndex(o => new { o.Status, o.OrderDate })
+                .IncludeProperties(o => o.TotalAmount);
             entity.Property(o => o.Note).HasMaxLength(500);
             entity.Property(o => o.Status).HasConversion<int>();
             entity.Property(o => o.DiscountAmount).HasColumnType("decimal(18,2)").HasDefaultValue(0m);

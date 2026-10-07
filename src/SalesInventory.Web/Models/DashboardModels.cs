@@ -1,0 +1,14 @@
+namespace SalesInventory.Web.Models;
+
+/// <summary>Mirror of the API's DashboardSummaryDto (all figures are computed server-side).</summary>
+public record DashboardSummary(
+    decimal TotalRevenue,
+    int OrderCount,
+    decimal AverageOrderValue,
+    decimal? PreviousPeriodRevenue,
+    decimal? RevenueChangePercent,
+    decimal InventoryValue,
+    int LowStockCount);
+
+/// <summary>One product in the "important alerts" list.</summary>
+public record LowStockAlert(int Id, string Name, int StockQuantity, int LowStockThreshold);

@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IStockMovementRepository, StockMovementRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
+        services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // Product images from the internet: SSRF-safe downloader plus the Open Food Facts barcode lookup

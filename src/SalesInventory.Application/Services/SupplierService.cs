@@ -96,8 +96,10 @@ public class SupplierService : ISupplierService
 
         supplier.Code = supplier.Code.Trim();
 
-        // Checked by the database (case-insensitive collation, unique index on Code) instead of loading every supplier
-        if (await _supplierRepository.AnyAsync(s => s.Id != excludeId && s.Code == supplier.Code))
+        // Checked by the database instead of loading every supplier. The comparison is lower-cased explicitly so it stays
+        // case-insensitive on any provider or collation (the supplier table is small, so skipping the index is fine)
+        var code = supplier.Code.ToLower();
+        if (await _supplierRepository.AnyAsync(s => s.Id != excludeId && s.Code.ToLower() == code))
         {
             throw new ArgumentException($"Supplier code '{supplier.Code}' already exists.", nameof(supplier));
         }

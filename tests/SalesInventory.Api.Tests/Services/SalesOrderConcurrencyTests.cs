@@ -45,7 +45,7 @@ public sealed class SalesOrderConcurrencyTests : IDisposable
     private SalesOrderService NewService(AppDbContext db) => new(
         new SalesOrderRepository(db),
         new Repository<Customer>(db),
-        new Repository<Product>(db),
+        new ProductRepository(db),
         new Repository<StockMovement>(db),
         new UnitOfWork(db),
         NullLogger<SalesOrderService>.Instance);

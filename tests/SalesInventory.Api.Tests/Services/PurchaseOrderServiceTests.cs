@@ -29,7 +29,7 @@ public sealed class PurchaseOrderServiceTests : IDisposable
         _service = new PurchaseOrderService(
             new PurchaseOrderRepository(_db),
             new Repository<Supplier>(_db),
-            new Repository<Product>(_db),
+            new ProductRepository(_db),
             new Repository<StockMovement>(_db),
             new UnitOfWork(_db),
             NullLogger<PurchaseOrderService>.Instance);

@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SalesInventory.Application.Interfaces;
+using SalesInventory.Infrastructure.Ai;
 using SalesInventory.Infrastructure.Identity;
 using SalesInventory.Infrastructure.Persistence;
 using SalesInventory.Infrastructure.Repositories;
@@ -42,6 +44,22 @@ public static class DependencyInjection
         services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        // LLM assistant: options from the "Anthropic" section; the key may also come from the ANTHROPIC_API_KEY environment variable
+        services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SectionName));
+        services.PostConfigure<AnthropicOptions>(o =>
+        {
+            if (string.IsNullOrWhiteSpace(o.ApiKey))
+            {
+                o.ApiKey = configuration["ANTHROPIC_API_KEY"];
+            }
+        });
+        services.AddHttpClient<IChatService, AnthropicChatService>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<AnthropicOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+        });
 
         // Product images from the internet: SSRF-safe downloader plus the Open Food Facts barcode lookup
         services.AddSingleton<IRemoteImageDownloader, SafeImageDownloader>();

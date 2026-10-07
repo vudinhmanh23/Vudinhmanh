@@ -94,6 +94,15 @@ public class GlobalExceptionHandlingMiddleware
                 stockProblem.Extensions["shortages"] = stock.Shortages;
                 return stockProblem;
 
+            case ChatInputException:
+                return Create(context, StatusCodes.Status400BadRequest, "Invalid question.",
+                    "https://tools.ietf.org/html/rfc9110#section-15.5.1", exception.Message);
+
+            // The AI provider is not configured or is failing; the message is user-safe, details are only in the log
+            case AssistantUnavailableException:
+                return Create(context, StatusCodes.Status503ServiceUnavailable, "Assistant unavailable.",
+                    "https://tools.ietf.org/html/rfc9110#section-15.6.4", exception.Message);
+
             case NotFoundException:
                 return Create(context, StatusCodes.Status404NotFound, "Resource not found.",
                     "https://tools.ietf.org/html/rfc9110#section-15.5.5", exception.Message);

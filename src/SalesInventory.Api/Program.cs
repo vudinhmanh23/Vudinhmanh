@@ -71,6 +71,36 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthPolicies.SalesAccess, p => p.RequireRole(AppRoles.Admin, AppRoles.BanHang));
 });
 
+// Each call to the assistant costs money, so a signed-in user may ask only a limited number of questions per minute
+// (Anthropic:RequestsPerMinute, default 10). The counter is kept per user; the client IP is the fallback key.
+var assistantRequestsPerMinute = Math.Max(1, builder.Configuration.GetValue<int?>("Anthropic:RequestsPerMinute") ?? 10);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("assistant", httpContext => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous",
+        _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        {
+            PermitLimit = assistantRequestsPerMinute,
+            Window = TimeSpan.FromMinutes(1)
+        }));
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        if (context.Lease.TryGetMetadata(System.Threading.RateLimiting.MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+        }
+
+        context.HttpContext.Response.ContentType = "application/problem+json";
+        await context.HttpContext.Response.WriteAsync(
+            "{\"title\":\"Too many requests.\",\"status\":429,\"detail\":\"Bạn hỏi quá nhanh, vui lòng thử lại sau ít phút.\"}",
+            cancellationToken);
+    };
+});
+
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -97,6 +127,17 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// Tell the developer early whether the assistant can work. Only "configured or not" is logged, never the key itself.
+// The key comes from user-secrets (Development) or the ANTHROPIC_API_KEY / Anthropic__ApiKey environment variable.
+var anthropicKeyConfigured = !string.IsNullOrWhiteSpace(builder.Configuration["Anthropic:ApiKey"])
+    || !string.IsNullOrWhiteSpace(builder.Configuration["ANTHROPIC_API_KEY"]);
+if (!anthropicKeyConfigured)
+{
+    app.Logger.LogWarning(
+        "Anthropic API key is not configured; POST /api/assistant/ask will answer 503. " +
+        "Set it with: dotnet user-secrets set \"Anthropic:ApiKey\" \"<your key>\" --project src/SalesInventory.Api");
+}
+
 // Configure the HTTP request pipeline.
 // First in the pipeline so it catches exceptions thrown by everything after it
 app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
@@ -114,6 +155,7 @@ app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 

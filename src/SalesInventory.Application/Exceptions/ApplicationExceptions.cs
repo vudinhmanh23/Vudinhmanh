@@ -59,3 +59,20 @@ public class BusinessRuleException : Exception
     {
     }
 }
+
+// The question sent to the assistant is empty or longer than allowed; the API maps this to 400 ProblemDetails
+public class ChatInputException : Exception
+{
+    public ChatInputException(string message) : base(message)
+    {
+    }
+}
+
+// The AI provider is not configured (no API key) or failed/refused the call; the API maps this to 503 ProblemDetails.
+// The message is safe to show to users: provider details only go to the server log
+public class AssistantUnavailableException : Exception
+{
+    public AssistantUnavailableException(string message, Exception? inner = null) : base(message, inner)
+    {
+    }
+}

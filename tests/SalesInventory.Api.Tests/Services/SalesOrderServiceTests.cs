@@ -35,7 +35,7 @@ public sealed class SalesOrderServiceTests : IDisposable
         _service = new SalesOrderService(
             new SalesOrderRepository(_db),
             new Repository<Customer>(_db),
-            new Repository<Product>(_db),
+            new ProductRepository(_db),
             new Repository<StockMovement>(_db),
             new UnitOfWork(_db),
             NullLogger<SalesOrderService>.Instance);
@@ -137,7 +137,7 @@ public sealed class SalesOrderServiceTests : IDisposable
         var service = new SalesOrderService(
             new SalesOrderRepository(_db),
             new Repository<Customer>(_db),
-            new Repository<Product>(_db),
+            new ProductRepository(_db),
             new Repository<StockMovement>(_db),
             new CommitFailsUnitOfWork(new UnitOfWork(_db)),
             NullLogger<SalesOrderService>.Instance);
@@ -155,7 +155,7 @@ public sealed class SalesOrderServiceTests : IDisposable
         var service = new SalesOrderService(
             new SalesOrderRepository(_db),
             new Repository<Customer>(_db),
-            new Repository<Product>(_db),
+            new ProductRepository(_db),
             new Repository<StockMovement>(_db),
             unitOfWork,
             NullLogger<SalesOrderService>.Instance);

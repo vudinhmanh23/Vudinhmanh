@@ -12,11 +12,33 @@ namespace SalesInventory.Api.Controllers;
 [Authorize(Policy = AuthPolicies.CanManageInventory)]
 public class ReportsController : ControllerBase
 {
-    private readonly IDashboardService _dashboardService;
+    private const string XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    public ReportsController(IDashboardService dashboardService)
+    private readonly IDashboardService _dashboardService;
+    private readonly IRevenueExcelService _revenueExcelService;
+
+    public ReportsController(IDashboardService dashboardService, IRevenueExcelService revenueExcelService)
     {
         _dashboardService = dashboardService;
+        _revenueExcelService = revenueExcelService;
+    }
+
+    /// <summary>
+    /// Daily revenue as an Excel file (revenue-report.xlsx, sheet "DoanhThu") with a total row.
+    /// Same data as GET /api/reports/revenue?groupBy=day; without dates the last 30 days are exported.
+    /// </summary>
+    [HttpGet("revenue/excel")]
+    [Produces(XlsxContentType)]
+    public async Task<IActionResult> GetRevenueExcel([FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        if (from is not null && to is not null && from > to)
+        {
+            ModelState.AddModelError(nameof(from), "from must not be later than to.");
+            return ValidationProblem(ModelState);
+        }
+
+        var days = await _dashboardService.GetRevenueReportAsync(from, to, RevenueGroupBy.Day, compare: false);
+        return File(_revenueExcelService.Generate(days), XlsxContentType, "revenue-report.xlsx");
     }
 
     /// <summary>

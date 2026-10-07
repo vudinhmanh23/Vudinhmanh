@@ -55,9 +55,17 @@
 
         <div class="col-md-6 mb-3">
             <label class="form-label" for="product-stock">Tồn kho</label>
-            <InputNumber id="product-stock" class="form-control" @bind-Value="Model.StockQuantity"
+            <InputNumber id="product-stock" class="form-control" @bind-Value="Model.StockQuantity" disabled="@StockReadOnly"
                          ParsingErrorMessage="Số lượng tồn kho phải là một số nguyên hợp lệ" />
             <ValidationMessage For="() => Model.StockQuantity" />
+            @if (StockReadOnly)
+            {
+                <div class="form-text">Tồn kho chỉ thay đổi qua phiếu nhập, bán hàng hoặc điều chỉnh kho, nên không sửa ở đây.</div>
+            }
+            else
+            {
+                <div class="form-text">Số lượng ban đầu; được ghi vào sổ kho là tồn đầu kỳ.</div>
+            }
         </div>
     </div>
 
@@ -88,6 +96,10 @@
     // Options for the category dropdown; the parent loads them from the API
     [Parameter]
     public IReadOnlyList<CategoryItem> Categories { get; set; } = Array.Empty<CategoryItem>();
+
+    // True when editing an existing product: stock cannot be changed from the form (the API ignores it on update)
+    [Parameter]
+    public bool StockReadOnly { get; set; }
 
     // Disables the button while the parent is talking to the API (prevents double submits)
     [Parameter]

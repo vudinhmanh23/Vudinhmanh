@@ -291,7 +291,10 @@ public class ProductsController : ControllerBase
         }
     }
 
-    /// <summary>Updates an existing product.</summary>
+    /// <summary>
+    /// Updates an existing product. The <c>quantity</c> field is accepted but IGNORED: stock never changes here, because a change
+    /// without a ledger row cannot be traced. Use adjust-stock or set-stock (they write a stock movement), or a purchase / sales order.
+    /// </summary>
     [HttpPut("{id}")]
     [Authorize(Policy = AuthPolicies.CanManageInventory)]
     public async Task<IActionResult> UpdateProduct(int id, UpdateProductDto dto)

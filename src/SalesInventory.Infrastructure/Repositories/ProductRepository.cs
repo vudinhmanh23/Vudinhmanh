@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SalesInventory.Application.Dtos;
 using SalesInventory.Application.Interfaces;
+using SalesInventory.Application.Services;
 using SalesInventory.Domain.Entities;
 using SalesInventory.Infrastructure.Persistence;
 
@@ -75,10 +76,20 @@ public class ProductRepository : Repository<Product>, IProductRepository
 
     public async Task<bool> HasDocumentsAsync(int id)
     {
-        // Three EXISTS probes; the foreign keys to Products are Restrict, so the database would refuse the delete anyway
+        // Three EXISTS probes; the foreign keys to Products are Restrict, so the database would refuse the delete anyway.
+        // The opening-stock row written when the product was created does not count: it explains nothing but that creation.
         return await _context.PurchaseOrderItems.AnyAsync(i => i.ProductId == id)
             || await _context.SalesOrderItems.AnyAsync(i => i.ProductId == id)
-            || await _context.StockMovements.AnyAsync(m => m.ProductId == id);
+            || await _context.StockMovements.AnyAsync(m => m.ProductId == id && m.RefType != ProductService.InitialStockReferenceType);
+    }
+
+    public async Task RemoveInitialStockMovementsAsync(int id)
+    {
+        // Loaded and removed through the tracker (not ExecuteDelete) so it joins the caller's transaction and SaveChanges
+        var rows = await _context.StockMovements
+            .Where(m => m.ProductId == id && m.RefType == ProductService.InitialStockReferenceType)
+            .ToListAsync();
+        _context.StockMovements.RemoveRange(rows);
     }
 
     public async Task<IReadOnlyList<int>> GetExistingIdsAsync(IReadOnlyCollection<int> ids)

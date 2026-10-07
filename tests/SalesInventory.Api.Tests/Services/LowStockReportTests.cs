@@ -23,7 +23,7 @@ public sealed class LowStockReportTests : IDisposable
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_connection).Options);
         _db.Database.EnsureCreated();
 
-        _service = new ProductService(new Repository<Product>(_db), new Repository<Category>(_db), new ProductRepository(_db));
+        _service = new ProductService(new Repository<Product>(_db), new Repository<Category>(_db), new ProductRepository(_db), new Repository<StockMovement>(_db), new UnitOfWork(_db));
     }
 
     public void Dispose()

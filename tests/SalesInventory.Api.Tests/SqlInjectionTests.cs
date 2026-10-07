@@ -352,13 +352,18 @@ public class SqlInjectionTests : IClassFixture<SqlInjectionTests.SqlInjectionFac
     private void Remove(int productId)
     {
         using var scope = _factory.Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<AppDbContext>().Products.Where(p => p.Id == productId).ExecuteDelete();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        // A product created through the API has an opening-stock ledger row, and the foreign key to Products is Restrict
+        db.StockMovements.Where(m => m.ProductId == productId).ExecuteDelete();
+        db.Products.Where(p => p.Id == productId).ExecuteDelete();
     }
 
     private void RemoveByName(params string[] names)
     {
         using var scope = _factory.Services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<AppDbContext>().Products.Where(p => names.Contains(p.Name)).ExecuteDelete();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.StockMovements.Where(m => names.Contains(m.Product!.Name)).ExecuteDelete();
+        db.Products.Where(p => names.Contains(p.Name)).ExecuteDelete();
     }
 
     // What a test endpoint answers: the rows it found, and every statement it sent to the database with its parameters

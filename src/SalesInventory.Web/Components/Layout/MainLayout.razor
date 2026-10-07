@@ -1,0 +1,64 @@
+﻿@inherits LayoutComponentBase
+@inject AuthService Auth
+@inject NavigationManager Navigation
+
+<div class="page">
+    <aside class="sidebar @(sidebarCollapsed ? "collapsed" : null)">
+        <NavMenu />
+    </aside>
+
+    <div class="main-area">
+        <header class="top-row">
+            <button type="button" class="sidebar-toggle" @onclick="ToggleSidebar"
+                    title="@(sidebarCollapsed ? "Hiện menu" : "Ẩn menu")"
+                    aria-expanded="@(!sidebarCollapsed)">
+                ☰
+            </button>
+            <span class="top-title">Quản lý bán hàng &amp; tồn kho</span>
+
+            <div class="top-user">
+                <AuthorizeView>
+                    <Authorized>
+                        <span class="user-name">@context.User.Identity?.Name</span>
+                        <span class="user-roles">@string.Join(", ", context.User.FindAll(ClaimTypes.Role).Select(r => r.Value))</span>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="LogoutAsync">Đăng xuất</button>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a href="login">Đăng nhập</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </header>
+
+        <main class="content">
+            @Body
+        </main>
+
+        <footer class="app-footer">
+            Đồ án tốt nghiệp - Hệ thống Quản lý Bán hàng &amp; Kho © @DateTime.Now.Year
+        </footer>
+    </div>
+</div>
+
+<ToastContainer />
+
+<div id="blazor-error-ui">
+    Đã xảy ra lỗi không mong muốn.
+    <a href="" class="reload">Tải lại</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    // Sidebar visibility lives in this layout, so it survives page navigation.
+    private bool sidebarCollapsed;
+
+    private void ToggleSidebar() => sidebarCollapsed = !sidebarCollapsed;
+
+    private async Task LogoutAsync()
+    {
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("/login");
+    }
+}
+
+

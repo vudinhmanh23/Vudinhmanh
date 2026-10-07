@@ -1,0 +1,64 @@
+.period {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.period label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.9rem;
+    color: #5b677d;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.kpi-card {
+    padding: 1rem 1.25rem;
+    border: 1px solid #dde3ee;
+    border-radius: 0.5rem;
+    background: #fff;
+}
+
+.kpi-label {
+    color: #5b677d;
+    font-size: 0.9rem;
+}
+
+.kpi-value {
+    font-size: 1.75rem;
+    font-weight: 600;
+}
+
+.kpi-warning .kpi-value {
+    color: #c0392b;
+}
+
+.alerts-title {
+    font-size: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.kpi-delta {
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+}
+
+.kpi-delta.up {
+    color: #1e8449;
+}
+
+.kpi-delta.down {
+    color: #c0392b;
+}
+
+.kpi-delta.flat {
+    color: #5b677d;
+}

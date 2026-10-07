@@ -1,0 +1,10 @@
+﻿@page "/purchases"
+
+<PageTitle>Nhập hàng - SalesInventory</PageTitle>
+
+<div class="page-header">
+    <h1>Nhập hàng</h1>
+    <AuthorizeView Roles="Admin,Kho">
+        <a class="btn btn-primary" href="purchases/create">Lập phiếu nhập</a>
+    </AuthorizeView>
+</div>

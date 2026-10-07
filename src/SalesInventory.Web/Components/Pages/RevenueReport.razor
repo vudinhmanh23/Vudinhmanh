@@ -1,0 +1,260 @@
+@page "/reports/revenue"
+@using System.Globalization
+@using System.Net
+@using ApexCharts
+@using SalesInventory.Web.Models
+@inject IHttpClientFactory HttpClientFactory
+@inject ToastService Toast
+@inject TokenStore Tokens
+@inject NavigationManager Navigation
+
+<PageTitle>Báo cáo doanh thu - SalesInventory</PageTitle>
+
+<div class="page-header">
+    <h1>Báo cáo doanh thu</h1>
+</div>
+
+<div class="period">
+    <label>Từ ngày
+        <input type="date" class="form-control" @bind="_from" @bind:format="yyyy-MM-dd" />
+    </label>
+    <label>Đến ngày
+        <input type="date" class="form-control" @bind="_to" @bind:format="yyyy-MM-dd" />
+    </label>
+    <label>Nhóm theo
+        <select class="form-select" value="@_groupBy" @onchange="OnGroupByChanged">
+            <option value="day">Ngày</option>
+            <option value="month">Tháng</option>
+            <option value="quarter">Quý</option>
+        </select>
+    </label>
+    <div class="form-check align-self-end mb-2">
+        <input id="compare" type="checkbox" class="form-check-input" checked="@_compare" @onchange="OnCompareChanged" />
+        <label for="compare" class="form-check-label">So sánh cùng kỳ năm trước</label>
+    </div>
+    <button type="button" class="btn btn-primary" disabled="@_isLoading" @onclick="LoadAsync">
+        @if (_isLoading)
+        {
+            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+        }
+        Xem báo cáo
+    </button>
+</div>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+
+@if (_isLoading)
+{
+    <p><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Đang tải…</p>
+}
+else if (_rows is not null && _error is null)
+{
+    @if (_rows.Count == 0)
+    {
+        <p>Không có dữ liệu doanh thu trong khoảng thời gian đã chọn</p>
+    }
+    else
+    {
+        @* A new key per load forces a fresh chart, so old points never linger after a new query *@
+        <ApexChart @key="_loadId" TItem="RevenueByPeriod" Title="@("Doanh thu theo " + PeriodHeader.ToLowerInvariant())" Options="_options">
+            <ApexPointSeries TItem="RevenueByPeriod"
+                             Items="_rows"
+                             Name="@(_shownCompare ? "Kỳ này" : "Doanh thu")"
+                             SeriesType="SeriesType.Line"
+                             XValue="r => r.Period"
+                             YValue="r => r.Revenue" />
+            @if (_shownCompare)
+            {
+                <ApexPointSeries TItem="RevenueByPeriod"
+                                 Items="_rows"
+                                 Name="Cùng kỳ năm trước"
+                                 SeriesType="SeriesType.Line"
+                                 XValue="r => r.Period"
+                                 YValue="r => r.PreviousYearRevenue" />
+            }
+        </ApexChart>
+
+        <table class="table table-striped align-middle mt-4">
+            <thead>
+                <tr>
+                    <th>@PeriodHeader</th>
+                    <th class="text-end">Doanh thu</th>
+                    <th class="text-end">Số đơn</th>
+                    @if (_shownCompare)
+                    {
+                        <th class="text-end">Doanh thu cùng kỳ năm trước</th>
+                        <th class="text-end">Số đơn cùng kỳ năm trước</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _rows)
+                {
+                    <tr>
+                        <td>@row.Period</td>
+                        <td class="text-end">@Vnd(row.Revenue)</td>
+                        <td class="text-end">@row.OrderCount.ToString("N0", ViCulture)</td>
+                        @if (_shownCompare)
+                        {
+                            <td class="text-end">@Vnd(row.PreviousYearRevenue ?? 0m)</td>
+                            <td class="text-end">@((row.PreviousYearOrderCount ?? 0).ToString("N0", ViCulture))</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="fw-bold">
+                    <td>Tổng</td>
+                    <td class="text-end">@Vnd(_rows.Sum(r => r.Revenue))</td>
+                    <td class="text-end">@_rows.Sum(r => r.OrderCount).ToString("N0", ViCulture)</td>
+                    @if (_shownCompare)
+                    {
+                        <td class="text-end">@Vnd(_rows.Sum(r => r.PreviousYearRevenue ?? 0m))</td>
+                        <td class="text-end">@_rows.Sum(r => r.PreviousYearOrderCount ?? 0).ToString("N0", ViCulture)</td>
+                    }
+                </tr>
+            </tfoot>
+        </table>
+    }
+}
+
+@code {
+    private const string DateFormat = "yyyy-MM-dd";
+    private static readonly CultureInfo ViCulture = new("vi-VN");
+
+    // Same default window as the API: first day of the month 11 months ago up to today (12 calendar months)
+    private DateTime _from = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-11);
+    private DateTime _to = DateTime.Today;
+
+    // Controls: bucket size (day | month | quarter) and the year-over-year line
+    private string _groupBy = "month";
+    private bool _compare;
+
+    // What the current data was loaded with, so the chart and table only change once a load has finished
+    private string _shownGroupBy = "month";
+    private bool _shownCompare;
+
+    private List<RevenueByPeriod>? _rows;
+    private bool _isLoading = true;
+    private bool _redirecting;
+    private string? _error;
+    private int _loadId;
+
+    private string PeriodHeader => _shownGroupBy switch { "day" => "Ngày", "quarter" => "Quý", _ => "Tháng" };
+
+    // Axis labels and tooltips are formatted in the browser from the raw numbers, so the table and the chart agree.
+    // Vietnamese currency: dot as thousands separator and a trailing "đ", e.g. 1.250.000 đ
+    private const string VndFormatter = "function (v) { return v == null ? '' : Number(v).toLocaleString('vi-VN') + ' đ'; }";
+
+    private readonly ApexChartOptions<RevenueByPeriod> _options = new()
+    {
+        Yaxis = new List<YAxis>
+        {
+            new() { Labels = new YAxisLabels { Formatter = VndFormatter } }
+        },
+        Tooltip = new Tooltip
+        {
+            Y = new TooltipY { Formatter = VndFormatter }
+        },
+        Stroke = new Stroke { Curve = Curve.Straight, Width = 3 },
+        Markers = new Markers { Size = 4 }
+    };
+
+    private static string Vnd(decimal value) => $"{value.ToString("N0", ViCulture)} đ";
+
+    private async Task OnGroupByChanged(ChangeEventArgs e)
+    {
+        _groupBy = e.Value?.ToString() ?? "month";
+        await LoadAsync();
+    }
+
+    private async Task OnCompareChanged(ChangeEventArgs e)
+    {
+        _compare = e.Value is true;
+        await LoadAsync();
+    }
+
+    // Session storage needs JS interop, so load after the first interactive render
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(await Tokens.GetAsync()))
+        {
+            _redirecting = true;
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+
+        // The API answers 400 for an inverted range, so say so here instead of sending the request
+        if (_from > _to)
+        {
+            _rows = null;
+            _error = "Ngày bắt đầu không được sau ngày kết thúc";
+            _isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient(ApiClient.Name);
+            var url = $"api/reports/revenue?from={_from.ToString(DateFormat, CultureInfo.InvariantCulture)}"
+                + $"&to={_to.ToString(DateFormat, CultureInfo.InvariantCulture)}"
+                + $"&groupBy={_groupBy}&compare={(_compare ? "true" : "false")}";
+            var response = await client.GetAsync(url);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                // Token expired or rejected; AuthMessageHandler has already cleared it
+                _redirecting = true;
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _error = "Bạn không có quyền xem báo cáo";
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Không thể tải báo cáo. Vui lòng thử lại sau";
+                Toast.ShowError(_error);
+                return;
+            }
+
+            _rows = await response.Content.ReadFromJsonAsync<List<RevenueByPeriod>>() ?? new();
+            _shownGroupBy = _groupBy;
+            _shownCompare = _compare;
+            _loadId++;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            _error = "Không kết nối được máy chủ, vui lòng thử lại";
+            Toast.ShowError(_error);
+        }
+        finally
+        {
+            _isLoading = _redirecting;
+            StateHasChanged();
+        }
+    }
+}

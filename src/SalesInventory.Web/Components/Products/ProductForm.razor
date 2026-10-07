@@ -1,0 +1,117 @@
+﻿@using SalesInventory.Web.Models
+
+@* Shared by the add and edit pages: the parent owns the model and decides what "save" means *@
+<EditForm Model="Model" OnValidSubmit="HandleValidSubmitAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    @if (Error is not null)
+    {
+        <div class="alert alert-danger" role="alert">
+            @Error.Message
+            @if (Error.Details.Count > 0)
+            {
+                <ul class="mb-0">
+                    @foreach (var detail in Error.Details)
+                    {
+                        <li>@detail</li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+
+    <div class="mb-3">
+        <label class="form-label" for="product-name">Tên sản phẩm</label>
+        <InputText id="product-name" class="form-control" @bind-Value="Model.Name" />
+        <ValidationMessage For="() => Model.Name" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="product-sku">Mã SKU</label>
+        <InputText id="product-sku" class="form-control" @bind-Value="Model.Sku" />
+        <ValidationMessage For="() => Model.Sku" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="product-category">Danh mục</label>
+        <InputSelect id="product-category" class="form-select" @bind-Value="Model.CategoryId">
+            <option value="0">-- Chọn danh mục --</option>
+            @foreach (var category in Categories)
+            {
+                <option value="@category.Id">@category.Name</option>
+            }
+        </InputSelect>
+        <ValidationMessage For="() => Model.CategoryId" />
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label" for="product-price">Giá bán (₫)</label>
+            <InputNumber id="product-price" class="form-control" @bind-Value="Model.Price"
+                         ParsingErrorMessage="Giá bán phải là một số hợp lệ" />
+            <ValidationMessage For="() => Model.Price" />
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label" for="product-stock">Tồn kho</label>
+            <InputNumber id="product-stock" class="form-control" @bind-Value="Model.StockQuantity" disabled="@StockReadOnly"
+                         ParsingErrorMessage="Số lượng tồn kho phải là một số nguyên hợp lệ" />
+            <ValidationMessage For="() => Model.StockQuantity" />
+            @if (StockReadOnly)
+            {
+                <div class="form-text">Tồn kho chỉ thay đổi qua phiếu nhập, bán hàng hoặc điều chỉnh kho, nên không sửa ở đây.</div>
+            }
+            else
+            {
+                <div class="form-text">Số lượng ban đầu; được ghi vào sổ kho là tồn đầu kỳ.</div>
+            }
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="product-description">Mô tả</label>
+        <InputTextArea id="product-description" class="form-control" rows="3"
+                       @bind-Value="Model.Description" @bind-Value:event="oninput" />
+        @* oninput keeps the counter live while typing instead of updating on blur *@
+        <div class="form-text @(RemainingDescriptionChars < 0 ? "text-danger" : null)">
+            @(RemainingDescriptionChars >= 0
+                ? $"Còn lại {RemainingDescriptionChars} ký tự"
+                : $"Vượt quá {-RemainingDescriptionChars} ký tự")
+        </div>
+        <ValidationMessage For="() => Model.Description" />
+    </div>
+
+    <LoadingButton Text="Lưu" LoadingText="Đang lưu…" IsLoading="Saving" />
+</EditForm>
+
+@code {
+    [Parameter, EditorRequired]
+    public ProductFormModel Model { get; set; } = default!;
+
+    // Raised only when every validation rule passes
+    [Parameter]
+    public EventCallback OnValidSubmit { get; set; }
+
+    // Options for the category dropdown; the parent loads them from the API
+    [Parameter]
+    public IReadOnlyList<CategoryItem> Categories { get; set; } = Array.Empty<CategoryItem>();
+
+    // True when editing an existing product: stock cannot be changed from the form (the API ignores it on update)
+    [Parameter]
+    public bool StockReadOnly { get; set; }
+
+    // Disables the button while the parent is talking to the API (prevents double submits)
+    [Parameter]
+    public bool Saving { get; set; }
+
+    // Server-side failure to show above the form (validation messages, duplicate SKU, ...)
+    [Parameter]
+    public ApiError? Error { get; set; }
+
+    private int RemainingDescriptionChars => ProductFormModel.DescriptionMaxLength - (Model.Description?.Length ?? 0);
+
+    private Task HandleValidSubmitAsync() => OnValidSubmit.InvokeAsync();
+}
+
+

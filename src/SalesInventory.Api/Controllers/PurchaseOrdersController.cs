@@ -30,12 +30,44 @@ public class PurchaseOrdersController : ControllerBase
         _createValidator = createValidator;
     }
 
-    /// <summary>Gets all purchase orders, newest first.</summary>
+    /// <summary>
+    /// Gets purchase orders, newest first. Without page/pageSize every order is returned; with them (pageSize 1-100)
+    /// only that page, and the X-Total-Count header carries the total number of orders.
+    /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<PurchaseOrderDto>>> GetPurchaseOrders()
+    public async Task<ActionResult<IEnumerable<PurchaseOrderDto>>> GetPurchaseOrders([FromQuery] int? page, [FromQuery] int? pageSize)
     {
-        var orders = await _purchaseOrderService.GetPurchaseOrdersAsync();
-        return Ok(_mapper.Map<IEnumerable<PurchaseOrderDto>>(orders));
+        if (!PagingIsValid(page, pageSize, out var error))
+        {
+            ModelState.AddModelError(nameof(page), error);
+            return ValidationProblem(ModelState);
+        }
+
+        if (page is not null)
+        {
+            Response.Headers["X-Total-Count"] = (await _purchaseOrderService.CountPurchaseOrdersAsync()).ToString();
+        }
+
+        var orders = await _purchaseOrderService.GetPurchaseOrdersAsync(page, pageSize);
+        return Ok(_mapper.Map<List<PurchaseOrderDto>>(orders));
+    }
+
+    // page and pageSize come together (both or neither) and stay within the allowed range
+    private static bool PagingIsValid(int? page, int? pageSize, out string error)
+    {
+        error = string.Empty;
+        if (page is null && pageSize is null)
+        {
+            return true;
+        }
+
+        if (page is null || pageSize is null || page < 1 || pageSize < 1 || pageSize > 100)
+        {
+            error = "page and pageSize must be given together: page >= 1 and pageSize between 1 and 100.";
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>Gets a single purchase order, with its line items, by id.</summary>

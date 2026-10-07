@@ -1,0 +1,112 @@
+@using System.Globalization
+@using SalesInventory.Web.Models
+
+@* Lines of a cart or purchase order with quantity controls and totals. The parent owns the list and changes it
+   in response to OnRemove / OnQuantityChanged; this component only displays and raises events. *@
+@if (Lines.Count == 0)
+{
+    <p class="text-muted">@EmptyText</p>
+}
+else
+{
+    <table class="table table-sm align-middle cart-table">
+        <thead>
+            <tr>
+                <th>Sản phẩm</th>
+                <th class="text-center">Số lượng</th>
+                <th class="text-end">Thành tiền</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var line in Lines)
+            {
+                <tr>
+                    <td>
+                        <div class="fw-semibold">@line.ProductName</div>
+                        <div class="small text-muted">@line.Sku · @PriceLabel @Money(line.UnitPrice)</div>
+                        @if (ShowStock && line.Stock is int stock)
+                        {
+                            <div class="small text-muted">Tồn kho: @stock @line.Unit</div>
+                        }
+                        @if (line.Problem is { } problem)
+                        {
+                            <div class="small text-danger">@problem</div>
+                        }
+                    </td>
+                    <td>
+                        <div class="qty-control">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" title="Giảm số lượng"
+                                    disabled="@(Disabled || line.Quantity <= 1)"
+                                    @onclick="() => ChangeAsync(line, line.Quantity - 1)">−</button>
+                            <input type="number" min="1" class="form-control form-control-sm qty" value="@line.Quantity"
+                                   disabled="@Disabled" @onchange="e => OnInputChangedAsync(line, e)" />
+                            @* The tooltip sits on a wrapper because browsers do not show titles on disabled buttons *@
+                            <span title="@(AtStockLimit(line) ? $"Đã đạt tồn kho tối đa ({line.Stock})" : "Tăng số lượng")">
+                                <button type="button" class="btn btn-outline-secondary btn-sm"
+                                        disabled="@(Disabled || AtStockLimit(line))"
+                                        @onclick="() => ChangeAsync(line, line.Quantity + 1)">+</button>
+                            </span>
+                        </div>
+                    </td>
+                    <td class="text-end">@Money(line.LineTotal)</td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-outline-danger btn-sm" disabled="@Disabled"
+                                @onclick="() => OnRemove.InvokeAsync(line)">Xóa</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <th>Tổng</th>
+                <th class="text-center">@Lines.Sum(l => l.Quantity)</th>
+                <th class="text-end">@Money(Lines.Sum(l => l.LineTotal))</th>
+                <th></th>
+            </tr>
+        </tfoot>
+    </table>
+}
+
+@code {
+    private static readonly CultureInfo ViCulture = new("vi-VN");
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CartLineVm> Lines { get; set; } = Array.Empty<CartLineVm>();
+
+    // Raised with the line the user wants to remove
+    [Parameter]
+    public EventCallback<CartLineVm> OnRemove { get; set; }
+
+    // Raised with the line and the quantity the user asked for (from +, - or typing); the parent applies it
+    [Parameter]
+    public EventCallback<QuantityChange> OnQuantityChanged { get; set; }
+
+    // Locks all controls while the parent is saving
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    // Show the stock on hand under each product (sales); purchases leave it off
+    [Parameter]
+    public bool ShowStock { get; set; }
+
+    // "Đơn giá" for sales, "Giá nhập" for purchases
+    [Parameter]
+    public string PriceLabel { get; set; } = "Đơn giá";
+
+    [Parameter]
+    public string EmptyText { get; set; } = "Chưa có dòng nào.";
+
+    // Stock comes from the product list the parent already loaded, so no API call happens per click
+    private static bool AtStockLimit(CartLineVm line) => line.Stock is int stock && line.Quantity >= stock;
+
+    private Task ChangeAsync(CartLineVm line, int quantity) => OnQuantityChanged.InvokeAsync(new QuantityChange(line, quantity));
+
+    private Task OnInputChangedAsync(CartLineVm line, ChangeEventArgs e)
+    {
+        // Unparsable input is ignored; the next render puts the old value back
+        return int.TryParse(e.Value?.ToString(), out var quantity) ? ChangeAsync(line, quantity) : Task.CompletedTask;
+    }
+
+    private static string Money(decimal value) => $"{value.ToString("N0", ViCulture)} ₫";
+}

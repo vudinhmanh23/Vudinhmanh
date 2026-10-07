@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Claims;
 using System.Text.Json;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
@@ -48,15 +49,26 @@ public class GlobalExceptionHandlingMiddleware
         var problem = BuildProblemDetails(context, exception);
         problem.Extensions["traceId"] = traceId;
 
-        // Expected business failures (4xx) are warnings; anything else is a server fault
+        // The context every entry carries: what was asked, by whom (the opaque user id, never an e-mail or a name) and how it ended.
+        // The request body, headers and query string are deliberately NOT logged: they can hold passwords and tokens.
+        var method = context.Request.Method;
+        var path = context.Request.Path.Value;
+        var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+
         if (problem.Status is >= 500)
         {
-            _logger.LogError(exception, "Unhandled exception. TraceId: {TraceId}", traceId);
+            // A server fault: Error, with the exception and its stack trace
+            _logger.LogError(exception,
+                "Unhandled {ExceptionType} on {RequestMethod} {RequestPath} for user {UserId}: responded {StatusCode}. TraceId: {TraceId}",
+                exception.GetType().Name, method, path, userId, problem.Status, traceId);
         }
         else
         {
-            _logger.LogWarning(exception, "Request rejected with {Status}: {Message}. TraceId: {TraceId}",
-                problem.Status, exception.Message, traceId);
+            // An expected business failure (validation, not found, conflict...): a Warning with the reason, but no stack trace,
+            // because nothing is broken
+            _logger.LogWarning(
+                "Request rejected on {RequestMethod} {RequestPath} for user {UserId} with {StatusCode} ({ExceptionType}): {Reason} (TraceId: {TraceId})",
+                method, path, userId, problem.Status, exception.GetType().Name, exception.Message, traceId);
         }
 
         context.Response.Clear();
@@ -84,9 +96,24 @@ public class GlobalExceptionHandlingMiddleware
                 };
 
             // Another request changed the same row (e.g. stock) between our read and write
-            case Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException:
+            case Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException or ConcurrencyConflictException:
                 return Create(context, StatusCodes.Status409Conflict, "Concurrency conflict.",
                     "https://tools.ietf.org/html/rfc9110#section-15.5.10", "The data was modified by another request. Please retry.");
+
+            case InsufficientStockException stock:
+                var stockProblem = Create(context, StatusCodes.Status409Conflict, "Không đủ tồn kho.",
+                    "https://tools.ietf.org/html/rfc9110#section-15.5.10", stock.Message);
+                stockProblem.Extensions["shortages"] = stock.Shortages;
+                return stockProblem;
+
+            case ChatInputException:
+                return Create(context, StatusCodes.Status400BadRequest, "Invalid question.",
+                    "https://tools.ietf.org/html/rfc9110#section-15.5.1", exception.Message);
+
+            // The AI provider is not configured or is failing; the message is user-safe, details are only in the log
+            case AssistantUnavailableException:
+                return Create(context, StatusCodes.Status503ServiceUnavailable, "Assistant unavailable.",
+                    "https://tools.ietf.org/html/rfc9110#section-15.6.4", exception.Message);
 
             case NotFoundException:
                 return Create(context, StatusCodes.Status404NotFound, "Resource not found.",

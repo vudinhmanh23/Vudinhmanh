@@ -1,0 +1,79 @@
+@* Reusable modal that asks "are you sure?" before a dangerous action.
+   Usage: keep a reference with @ref, set Title/Message/OnConfirm, and call Show() when the user clicks the risky button. *@
+@if (_visible)
+{
+    <div class="confirm-backdrop" @onclick="CancelAsync">
+        <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="confirm-title" @onclick:stopPropagation="true">
+            <h2 id="confirm-title" class="h5">@Title</h2>
+            <p class="confirm-message">@Message</p>
+            <div class="confirm-actions">
+                <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="CancelAsync">Huỷ</button>
+                <LoadingButton Type="button" Class="@ConfirmClass" Text="Xác nhận" IsLoading="_busy"
+                               OnClick="@(() => ConfirmAsync())" />
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _visible;
+
+    // True while OnConfirm runs, so a double click cannot run the action twice
+    private bool _busy;
+
+    [Parameter]
+    public string Title { get; set; } = "Xác nhận";
+
+    [Parameter]
+    public string Message { get; set; } = string.Empty;
+
+    // CSS classes of the confirm button: red for destructive actions (delete), blue for ordinary ones
+    [Parameter]
+    public string ConfirmClass { get; set; } = "btn btn-danger";
+
+    // Runs when the user clicks "Xác nhận"; the dialog hides after it finishes
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    // Runs when the user clicks "Huỷ" or the dark backdrop
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    public void Show()
+    {
+        _visible = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+
+        try
+        {
+            await OnConfirm.InvokeAsync();
+        }
+        finally
+        {
+            _busy = false;
+            _visible = false;
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        // Ignore cancel while the confirmed action is still running
+        if (_busy)
+        {
+            return;
+        }
+
+        _visible = false;
+        await OnCancel.InvokeAsync();
+    }
+}

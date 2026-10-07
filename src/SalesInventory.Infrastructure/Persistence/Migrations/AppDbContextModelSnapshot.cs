@@ -209,6 +209,65 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SalesInventory.Domain.Entities.ChatMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId", "Id");
+
+                    b.ToTable("ChatMessages");
+                });
+
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Conversation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "UpdatedAt");
+
+                    b.ToTable("Conversations");
+                });
+
             modelBuilder.Entity("SalesInventory.Domain.Entities.Customer", b =>
                 {
                     b.Property<int>("Id")
@@ -241,7 +300,40 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Phone");
+
                     b.ToTable("Customers");
+                });
+
+            modelBuilder.Entity("SalesInventory.Domain.Entities.KnowledgeChunk", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("Embedding")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("SourceTitle")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceTitle");
+
+                    b.ToTable("KnowledgeChunks");
                 });
 
             modelBuilder.Entity("SalesInventory.Domain.Entities.Product", b =>
@@ -266,10 +358,17 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<int>("LowStockThreshold")
+                        .HasColumnType("int");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -283,6 +382,9 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("decimal(18,2)")
                         .HasDefaultValue(0m);
+
+                    b.Property<int>("ReorderLevel")
+                        .HasColumnType("int");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -320,12 +422,23 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("Name");
+
+                    b.HasIndex("SalePrice");
+
                     b.HasIndex("Sku")
                         .IsUnique();
 
+                    b.HasIndex("StockQuantity");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("StockQuantity"), new[] { "IsActive", "LowStockThreshold", "PurchasePrice", "Name" });
+
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("Products");
+                    b.ToTable("Products", t =>
+                        {
+                            t.HasCheckConstraint("CK_Products_StockQuantity_NonNegative", "[StockQuantity] >= 0");
+                        });
 
                     b.HasData(
                         new
@@ -334,9 +447,11 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 1,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
+                            LowStockThreshold = 5,
                             Name = "Bàn phím cơ",
                             Price = 550000m,
                             PurchasePrice = 0m,
+                            ReorderLevel = 0,
                             SalePrice = 550000m,
                             Sku = "SKU-DT-001",
                             StockQuantity = 50,
@@ -349,9 +464,11 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 1,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
+                            LowStockThreshold = 5,
                             Name = "Chuột không dây",
                             Price = 250000m,
                             PurchasePrice = 0m,
+                            ReorderLevel = 0,
                             SalePrice = 250000m,
                             Sku = "SKU-DT-002",
                             StockQuantity = 100,
@@ -364,9 +481,11 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 2,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
+                            LowStockThreshold = 5,
                             Name = "Bút bi Thiên Long",
                             Price = 5000m,
                             PurchasePrice = 0m,
+                            ReorderLevel = 0,
                             SalePrice = 5000m,
                             Sku = "SKU-VPP-001",
                             StockQuantity = 500,
@@ -379,9 +498,11 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 2,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
+                            LowStockThreshold = 5,
                             Name = "Giấy in A4",
                             Price = 65000m,
                             PurchasePrice = 0m,
+                            ReorderLevel = 0,
                             SalePrice = 65000m,
                             Sku = "SKU-VPP-002",
                             StockQuantity = 200,
@@ -394,9 +515,11 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 3,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
+                            LowStockThreshold = 5,
                             Name = "Nồi cơm điện",
                             Price = 850000m,
                             PurchasePrice = 0m,
+                            ReorderLevel = 0,
                             SalePrice = 850000m,
                             Sku = "SKU-GD-001",
                             StockQuantity = 30,
@@ -409,9 +532,11 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 4,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
+                            LowStockThreshold = 5,
                             Name = "Áo thun nam",
                             Price = 150000m,
                             PurchasePrice = 0m,
+                            ReorderLevel = 0,
                             SalePrice = 150000m,
                             Sku = "SKU-TT-001",
                             StockQuantity = 80,
@@ -424,9 +549,11 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 4,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
+                            LowStockThreshold = 5,
                             Name = "Giày thể thao",
                             Price = 750000m,
                             PurchasePrice = 0m,
+                            ReorderLevel = 0,
                             SalePrice = 750000m,
                             Sku = "SKU-TT-002",
                             StockQuantity = 40,
@@ -439,9 +566,11 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                             CategoryId = 5,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
+                            LowStockThreshold = 5,
                             Name = "Mì gói Hảo Hảo (thùng)",
                             Price = 120000m,
                             PurchasePrice = 0m,
+                            ReorderLevel = 0,
                             SalePrice = 120000m,
                             Sku = "SKU-TP-001",
                             StockQuantity = 150,
@@ -485,6 +614,8 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("OrderDate", "Id");
 
                     b.ToTable("PurchaseOrders");
                 });
@@ -562,6 +693,12 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                     b.HasIndex("OrderNumber")
                         .IsUnique();
 
+                    b.HasIndex("OrderDate", "Id");
+
+                    b.HasIndex("Status", "OrderDate");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Status", "OrderDate"), new[] { "TotalAmount" });
+
                     b.ToTable("SalesOrders");
                 });
 
@@ -591,6 +728,8 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ProductId"), new[] { "SalesOrderId", "Quantity", "LineTotal" });
 
                     b.HasIndex("SalesOrderId");
 
@@ -629,11 +768,18 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("Reference")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("StockAfter")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("ProductId");
-
                     b.HasIndex("RefType", "RefId");
+
+                    b.HasIndex("ProductId", "CreatedAt", "Id");
 
                     b.ToTable("StockMovements");
                 });
@@ -817,6 +963,17 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SalesInventory.Domain.Entities.ChatMessage", b =>
+                {
+                    b.HasOne("SalesInventory.Domain.Entities.Conversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+                });
+
             modelBuilder.Entity("SalesInventory.Domain.Entities.Product", b =>
                 {
                     b.HasOne("SalesInventory.Domain.Entities.Category", "Category")
@@ -909,6 +1066,11 @@ namespace SalesInventory.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("SalesInventory.Domain.Entities.Category", b =>
                 {
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("SalesInventory.Domain.Entities.Conversation", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("SalesInventory.Domain.Entities.Customer", b =>

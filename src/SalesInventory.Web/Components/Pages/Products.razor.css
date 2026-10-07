@@ -1,0 +1,48 @@
+﻿.filters {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.filters > * {
+    flex: 1 1 12rem;
+    width: auto;
+}
+
+.filters .price-input {
+    flex-basis: 8rem;
+}
+
+.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.pager {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.pager .total {
+    margin-left: auto;
+    color: #5b677d;
+}
+
+.page-size {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0;
+}
+
+.page-size select {
+    width: auto;
+}
+
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}

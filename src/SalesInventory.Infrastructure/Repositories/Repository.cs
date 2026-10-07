@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using SalesInventory.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using SalesInventory.Infrastructure.Persistence;
@@ -18,12 +19,22 @@ public class Repository<T> : IRepository<T> where T : class
 
     public async Task<IEnumerable<T>> GetAllAsync()
     {
-        return await _dbSet.ToListAsync();
+        return await _dbSet.AsNoTracking().ToListAsync();
     }
 
     public async Task<T?> GetByIdAsync(int id)
     {
         return await _dbSet.FindAsync(id);
+    }
+
+    public async Task<bool> AnyAsync(Expression<Func<T, bool>> predicate)
+    {
+        return await _dbSet.AnyAsync(predicate);
+    }
+
+    public async Task<int> CountAsync()
+    {
+        return await _dbSet.CountAsync();
     }
 
     public async Task AddAsync(T entity)
@@ -41,7 +52,7 @@ public class Repository<T> : IRepository<T> where T : class
         _dbSet.Remove(entity);
     }
 
-    public async Task SaveChangesAsync()
+    public virtual async Task SaveChangesAsync()
     {
         await _context.SaveChangesAsync();
     }

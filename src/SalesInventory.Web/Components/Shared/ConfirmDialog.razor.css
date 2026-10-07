@@ -1,0 +1,29 @@
+.confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-color: rgba(15, 23, 42, 0.55);
+}
+
+.confirm-box {
+    width: 100%;
+    max-width: 26rem;
+    padding: 1.5rem;
+    background-color: var(--surface-card);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.confirm-message {
+    margin: 0.75rem 0 1.25rem;
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}

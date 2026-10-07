@@ -19,6 +19,10 @@ public class CreateProductDto
 
     public int Quantity { get; set; }
 
+    public int LowStockThreshold { get; set; } = 5;
+
+    public int ReorderLevel { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public int CategoryId { get; set; }

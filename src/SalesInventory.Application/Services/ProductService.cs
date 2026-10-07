@@ -1,6 +1,8 @@
+using SalesInventory.Application.Dtos;
+using SalesInventory.Application.Exceptions;
 using SalesInventory.Domain.Entities;
+using SalesInventory.Domain.Enums;
 using SalesInventory.Application.Interfaces;
-using Microsoft.Extensions.Options;
 
 namespace SalesInventory.Application.Services;
 
@@ -8,13 +10,25 @@ public class ProductService : IProductService
 {
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Category> _categoryRepository;
-    private readonly InventorySettings _inventorySettings;
+    private readonly IProductRepository _productQueries;
+    private readonly IRepository<StockMovement> _stockMovementRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public ProductService(IRepository<Product> productRepository, IRepository<Category> categoryRepository, IOptions<InventorySettings> inventorySettings)
+    // Reference type of the ledger row written for the stock a product is created with
+    public const string InitialStockReferenceType = "InitialStock";
+
+    public ProductService(
+        IRepository<Product> productRepository,
+        IRepository<Category> categoryRepository,
+        IProductRepository productQueries,
+        IRepository<StockMovement> stockMovementRepository,
+        IUnitOfWork unitOfWork)
     {
         _productRepository = productRepository;
         _categoryRepository = categoryRepository;
-        _inventorySettings = inventorySettings.Value;
+        _productQueries = productQueries;
+        _stockMovementRepository = stockMovementRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<IEnumerable<Product>> GetProductsAsync()
@@ -27,43 +41,56 @@ public class ProductService : IProductService
         return await _productRepository.GetByIdAsync(id);
     }
 
+    public async Task<Product?> GetProductReadOnlyAsync(int id)
+    {
+        return await _productQueries.GetByIdReadOnlyAsync(id);
+    }
+
     public async Task<Product?> GetProductBySkuAsync(string sku)
     {
-        var products = await _productRepository.GetAllAsync();
-        return products.FirstOrDefault(p => string.Equals(p.Sku, sku, StringComparison.OrdinalIgnoreCase));
+        return await _productQueries.GetBySkuAsync(sku);
     }
 
     public async Task<IEnumerable<Product>> GetInactiveProductsAsync()
     {
-        var products = await _productRepository.GetAllAsync();
-        return products.Where(p => !p.IsActive);
+        return await _productQueries.GetInactiveAsync();
     }
 
-    public async Task<IEnumerable<Product>> GetLowStockProductsAsync()
+    public async Task<IReadOnlyList<Product>> GetLowStockProductsAsync(bool includeInactive = false)
     {
-        var products = await _productRepository.GetAllAsync();
-        return products
-            .Where(p => p.StockQuantity < _inventorySettings.LowStockThreshold)
-            .OrderBy(p => p.StockQuantity)
-            .ThenBy(p => p.Id);
+        return await _productQueries.GetBelowReorderLevelAsync(includeInactive);
+    }
+
+    public async Task<(IReadOnlyList<Product> Items, int TotalCount)> SearchProductsAsync(
+        string? search, int? categoryId, string sortBy, bool descending, int page, int pageSize)
+    {
+        return await _productQueries.SearchAsync(search, categoryId, sortBy, descending, page, pageSize);
+    }
+
+    public async Task<(IReadOnlyList<ProductListItemDto> Items, int TotalCount)> QueryProductsAsync(ProductQueryParameters query)
+    {
+        return await _productQueries.QueryAsync(query);
+    }
+
+    public async Task<InventorySummary> GetInventorySummaryAsync()
+    {
+        return await _productQueries.GetInventorySummaryAsync();
     }
 
     public async Task<bool> IsSkuTakenAsync(string sku, int? excludeProductId)
     {
-        var products = await _productRepository.GetAllAsync();
-        return products.Any(p => p.Id != excludeProductId && string.Equals(p.Sku, sku, StringComparison.OrdinalIgnoreCase));
+        // The database compares with the column collation (case-insensitive) and uses the unique index on Sku
+        return await _productRepository.AnyAsync(p => p.Id != excludeProductId && p.Sku == sku);
     }
 
     public async Task<bool> IsBarcodeTakenAsync(string barcode, int? excludeProductId)
     {
-        var products = await _productRepository.GetAllAsync();
-        return products.Any(p => p.Id != excludeProductId && p.Barcode is not null && string.Equals(p.Barcode, barcode, StringComparison.OrdinalIgnoreCase));
+        return await _productRepository.AnyAsync(p => p.Id != excludeProductId && p.Barcode == barcode);
     }
 
     public async Task<IEnumerable<Product>> GetProductsByCategoryIdAsync(int categoryId)
     {
-        var products = await _productRepository.GetAllAsync();
-        return products.Where(p => p.CategoryId == categoryId);
+        return await _productQueries.GetByCategoryAsync(categoryId);
     }
 
     public async Task<Product> CreateProductAsync(Product product)
@@ -82,8 +109,37 @@ public class ProductService : IProductService
 
         await EnsureCodesAreUniqueAsync(product, null);
 
-        await _productRepository.AddAsync(product);
-        await _productRepository.SaveChangesAsync();
+        // The product and the ledger row for its opening stock are one all-or-nothing unit: stock must never exist without a
+        // StockMovement that explains it. The Id is generated by the first save, so the row is added after it.
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            await _productRepository.AddAsync(product);
+            await _productRepository.SaveChangesAsync();
+
+            if (product.StockQuantity > 0)
+            {
+                await _stockMovementRepository.AddAsync(new StockMovement
+                {
+                    ProductId = product.Id,
+                    MovementType = StockMovementType.Adjustment,
+                    Quantity = product.StockQuantity,
+                    StockAfter = product.StockQuantity,
+                    RefType = InitialStockReferenceType,
+                    RefId = 0, // no source document: the opening stock is entered by hand
+                    CreatedAt = DateTime.UtcNow,
+                    Note = "Tồn đầu kỳ khi tạo sản phẩm"
+                });
+                await _stockMovementRepository.SaveChangesAsync();
+            }
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
 
         return product;
     }
@@ -110,7 +166,9 @@ public class ProductService : IProductService
 
         await EnsureCodesAreUniqueAsync(product, id);
 
-        // SupplierId and CreatedAt are intentionally left untouched by updates
+        // SupplierId and CreatedAt are intentionally left untouched by updates. So is StockQuantity: stock only changes through
+        // documents that write a StockMovement (purchase orders, sales orders, adjust-stock, set-stock). Copying the client value
+        // here would change stock with no ledger row, and a form opened before a sale would overwrite that sale.
         existing.Name = product.Name;
         existing.Sku = product.Sku;
         existing.Barcode = product.Barcode;
@@ -120,7 +178,8 @@ public class ProductService : IProductService
         existing.PurchasePrice = product.PurchasePrice;
         existing.SalePrice = product.SalePrice;
         existing.IsActive = product.IsActive;
-        existing.StockQuantity = product.StockQuantity;
+        existing.LowStockThreshold = product.LowStockThreshold;
+        existing.ReorderLevel = product.ReorderLevel;
         existing.CategoryId = product.CategoryId;
 
         _productRepository.Update(existing);
@@ -137,10 +196,48 @@ public class ProductService : IProductService
             return false;
         }
 
-        _productRepository.Delete(existing);
-        await _productRepository.SaveChangesAsync();
+        // A product with orders or stock history must stay: those rows (and the stock ledger) refer to it.
+        // Without this check the database's foreign key would fail the delete and the API would answer 500.
+        if (await _productQueries.HasDocumentsAsync(id))
+        {
+            throw new ConflictException(
+                $"Không thể xóa sản phẩm {existing.Name} (Id {id}): sản phẩm đã có đơn hàng hoặc lịch sử kho. Hãy chuyển sang ngừng kinh doanh (IsActive = false).");
+        }
+
+        // The opening-stock row (written at creation) goes with the product, in the same transaction, so a product created
+        // by mistake can still be removed before it has any real history
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            await _productQueries.RemoveInitialStockMovementsAsync(id);
+            _productRepository.Delete(existing);
+            await _productRepository.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
 
         return true;
+    }
+
+    public async Task<(bool Found, string? PreviousImageUrl)> SetProductImageAsync(int id, string? imageUrl)
+    {
+        var existing = await _productRepository.GetByIdAsync(id);
+        if (existing is null)
+        {
+            return (false, null);
+        }
+
+        var previous = existing.ImageUrl;
+        existing.ImageUrl = imageUrl;
+
+        _productRepository.Update(existing);
+        await _productRepository.SaveChangesAsync();
+
+        return (true, previous);
     }
 
     // Friendly pre-check; the unique indexes on Products.Sku / Products.Barcode remain the final guard against races

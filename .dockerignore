@@ -1,6 +1,18 @@
+# Build output and tooling: never part of the build context (the image builds its own)
 **/bin/
 **/obj/
 .git/
-.env
-*.user
 .vs/
+**/*.user
+
+# Secrets and local settings
+.env
+.env.*
+
+# Things that exist only on a developer machine: logs and uploaded product images (both are written at run time)
+**/logs/
+**/wwwroot/uploads/
+
+# Not needed to build the images (they copy only the projects they use)
+tests/
+docs/

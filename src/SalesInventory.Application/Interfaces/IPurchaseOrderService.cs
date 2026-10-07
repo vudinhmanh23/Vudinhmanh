@@ -5,7 +5,9 @@ namespace SalesInventory.Application.Interfaces;
 // Business-facing operations for PurchaseOrder (stock-in), on top of the repository layer
 public interface IPurchaseOrderService
 {
-    Task<IReadOnlyList<PurchaseOrder>> GetPurchaseOrdersAsync();
+    // Optional page/pageSize limit the list (newest first); without them every order is returned
+    Task<IReadOnlyList<PurchaseOrder>> GetPurchaseOrdersAsync(int? page = null, int? pageSize = null);
+    Task<int> CountPurchaseOrdersAsync();
     Task<PurchaseOrder?> GetPurchaseOrderAsync(int id);
 
     // Computes totals and saves the order as a Draft; stock is not touched until it is approved

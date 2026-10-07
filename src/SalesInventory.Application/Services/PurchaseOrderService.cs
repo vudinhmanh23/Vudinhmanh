@@ -12,7 +12,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     private readonly IPurchaseOrderRepository _purchaseOrderRepository;
     private readonly IRepository<Supplier> _supplierRepository;
-    private readonly IRepository<Product> _productRepository;
+    private readonly IProductRepository _productRepository;
     private readonly IRepository<StockMovement> _stockMovementRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<PurchaseOrderService> _logger;
@@ -20,7 +20,7 @@ public class PurchaseOrderService : IPurchaseOrderService
     public PurchaseOrderService(
         IPurchaseOrderRepository purchaseOrderRepository,
         IRepository<Supplier> supplierRepository,
-        IRepository<Product> productRepository,
+        IProductRepository productRepository,
         IRepository<StockMovement> stockMovementRepository,
         IUnitOfWork unitOfWork,
         ILogger<PurchaseOrderService> logger)
@@ -33,14 +33,19 @@ public class PurchaseOrderService : IPurchaseOrderService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<IReadOnlyList<PurchaseOrder>> GetPurchaseOrdersAsync()
+    public async Task<IReadOnlyList<PurchaseOrder>> GetPurchaseOrdersAsync(int? page = null, int? pageSize = null)
     {
-        return await _purchaseOrderRepository.GetAllWithItemsAsync();
+        return await _purchaseOrderRepository.GetAllWithItemsAsync(page, pageSize);
+    }
+
+    public async Task<int> CountPurchaseOrdersAsync()
+    {
+        return await _purchaseOrderRepository.CountAsync();
     }
 
     public async Task<PurchaseOrder?> GetPurchaseOrderAsync(int id)
     {
-        return await _purchaseOrderRepository.GetWithItemsAsync(id);
+        return await _purchaseOrderRepository.GetForReadAsync(id);
     }
 
     public async Task<PurchaseOrder> CreatePurchaseOrderAsync(PurchaseOrder purchaseOrder)
@@ -51,7 +56,8 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new BusinessRuleException("A purchase order must contain at least one item.");
         }
 
-        if (items.Sum(i => i.Quantity) <= 0)
+        // long arithmetic: adding up large quantities as ints would throw OverflowException (an HTTP 500)
+        if (items.Sum(i => (long)i.Quantity) <= 0)
         {
             throw new BusinessRuleException("Total quantity of a purchase order must be greater than 0.");
         }
@@ -70,14 +76,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         // Every product must exist; report all missing ids at once
-        var missingProductIds = new List<int>();
-        foreach (var productId in items.Select(i => i.ProductId).Distinct())
-        {
-            if (await _productRepository.GetByIdAsync(productId) is null)
-            {
-                missingProductIds.Add(productId);
-            }
-        }
+        var requestedProductIds = items.Select(i => i.ProductId).Distinct().ToList();
+        var existingProductIds = await _productRepository.GetExistingIdsAsync(requestedProductIds);
+        var missingProductIds = requestedProductIds.Except(existingProductIds).ToList();
 
         if (missingProductIds.Count > 0)
         {
@@ -130,6 +131,19 @@ public class PurchaseOrderService : IPurchaseOrderService
         {
             var now = DateTime.UtcNow;
 
+            // Refuse BEFORE changing anything if a product's stock would no longer fit in an int: unchecked, the addition wraps
+            // around to a NEGATIVE stock. Lines of the same product are added up first, as they are applied together.
+            foreach (var group in order.PurchaseOrderItems.GroupBy(i => i.ProductId))
+            {
+                var target = group.First().Product
+                    ?? throw new InvalidOperationException($"Product {group.Key} of purchase order {order.Id} is missing.");
+                if ((long)target.StockQuantity + group.Sum(i => (long)i.Quantity) > int.MaxValue)
+                {
+                    throw new BusinessRuleException(
+                        $"Không thể duyệt phiếu nhập {order.Code}: tồn kho của sản phẩm {target.Name} (Id {target.Id}) sẽ vượt giới hạn {int.MaxValue}.");
+                }
+            }
+
             // One stock increase and one Purchase movement for EVERY line (the products are tracked via Include)
             foreach (var item in order.PurchaseOrderItems)
             {
@@ -143,6 +157,8 @@ public class PurchaseOrderService : IPurchaseOrderService
                     ProductId = item.ProductId,
                     MovementType = StockMovementType.Import,
                     Quantity = item.Quantity,
+                    StockAfter = product.StockQuantity,
+                    Reference = order.Code,
                     RefType = PurchaseOrderReferenceType,
                     RefId = order.Id,
                     CreatedAt = now,
@@ -259,6 +275,8 @@ public class PurchaseOrderService : IPurchaseOrderService
                 ProductId = item.ProductId,
                 MovementType = movementType,
                 Quantity = -item.Quantity,
+                StockAfter = product.StockQuantity,
+                Reference = order.Code,
                 RefType = PurchaseOrderReferenceType,
                 RefId = order.Id,
                 CreatedAt = now,

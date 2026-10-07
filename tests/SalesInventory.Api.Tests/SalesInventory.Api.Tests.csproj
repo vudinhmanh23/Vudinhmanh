@@ -14,6 +14,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.10" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="Testcontainers.MsSql" Version="4.15.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
@@ -24,6 +25,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SalesInventory.Api\SalesInventory.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Blazor app's own SSE client, compiled here (not referenced as a project: both apps have a Program class) so a test can
+         run it against the real /api/chat/stream output -->
+    <Compile Include="..\..\src\SalesInventory.Web\Services\AssistantApi.cs" Link="WebLinked\AssistantApi.cs" />
+    <Compile Include="..\..\src\SalesInventory.Web\Services\ApiClient.cs" Link="WebLinked\ApiClient.cs" />
+    <Compile Include="..\..\src\SalesInventory.Web\Models\AssistantModels.cs" Link="WebLinked\AssistantModels.cs" />
   </ItemGroup>
 
 </Project>

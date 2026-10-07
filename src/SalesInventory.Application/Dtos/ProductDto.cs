@@ -11,7 +11,10 @@ public class ProductDto
     public string Unit { get; set; } = string.Empty;
     public decimal SalePrice { get; set; }
     public int Quantity { get; set; }
+    public int LowStockThreshold { get; set; }
+    public int ReorderLevel { get; set; }
     public bool IsActive { get; set; }
+    public string? ImageUrl { get; set; }
     public int CategoryId { get; set; }
     public string? CategoryName { get; set; }
     public int? SupplierId { get; set; }

@@ -38,9 +38,19 @@ public class Product
 
     public int StockQuantity { get; set; }
 
+    // A sale that leaves StockQuantity <= this value raises a low-stock warning (it never blocks the sale)
+    public int LowStockThreshold { get; set; } = 5;
+
+    // Minimum stock the business wants to keep on hand; informational only, no stock logic reads it yet
+    public int ReorderLevel { get; set; }
+
     // Optimistic concurrency token: two sales racing for the same stock cannot both win
     [Timestamp]
     public byte[]? RowVersion { get; set; }
+
+    // Relative URL of the product image served as a static file, e.g. "/uploads/products/<guid>.png"
+    [MaxLength(500)]
+    public string? ImageUrl { get; set; }
 
     public int CategoryId { get; set; }
     public Category? Category { get; set; }

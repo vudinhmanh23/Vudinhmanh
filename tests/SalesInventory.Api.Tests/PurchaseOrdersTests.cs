@@ -141,6 +141,8 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
         });
         Assert.Equal(3, movements.Single(m => m.ProductId == p1).Quantity);
         Assert.Equal(2, movements.Single(m => m.ProductId == p2).Quantity);
+        Assert.Equal(13, movements.Single(m => m.ProductId == p1).StockAfter);
+        Assert.Equal(7, movements.Single(m => m.ProductId == p2).StockAfter);
         Assert.Equal(PurchaseOrderStatus.Approved, (await db.PurchaseOrders.SingleAsync(o => o.Id == created.Id)).Status);
     }
 
@@ -200,7 +202,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Create_GeneratesSequentialCodePerDay()
+    public async Task Create_TwoOrdersOnTheSameDay_GenerateSequentialCodes()
     {
         var client = await AdminClientAsync();
         var p = await AddProductAsync(stock: 0);
@@ -227,7 +229,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Create_ClientSuppliedTotalsAreIgnored()
+    public async Task Create_ClientSuppliedTotals_AreRecomputedByTheServer()
     {
         var client = await AdminClientAsync();
         var p = await AddProductAsync(stock: 0);
@@ -441,7 +443,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task ProductMovements_ReturnsHistoryNewestFirst()
+    public async Task ProductMovements_ProductWithSeveralMovements_ReturnsNewestFirst()
     {
         var client = await AdminClientAsync();
         var p = await AddProductAsync(stock: 10);

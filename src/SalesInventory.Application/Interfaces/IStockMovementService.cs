@@ -14,4 +14,8 @@ public interface IStockMovementService
     // Throws NotFoundException (unknown product), a validation error (zero delta / blank reason)
     // or ConflictException when the result would be below zero.
     Task<StockAdjustmentResult> AdjustStockAsync(int productId, int delta, string reason);
+
+    // Stocktake: sets the stock to an absolute count and logs Quantity = new - old (negative or positive) as an
+    // Adjustment movement, in one transaction. Same failures as above; a count equal to the current stock is a validation error.
+    Task<StockAdjustmentResult> SetStockAsync(int productId, int newQuantity, string reason);
 }

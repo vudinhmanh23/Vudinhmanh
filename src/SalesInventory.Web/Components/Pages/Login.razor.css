@@ -1,0 +1,7 @@
+﻿.login-card {
+    max-width: 24rem;
+    padding: var(--space);
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}

@@ -4,6 +4,9 @@ namespace SalesInventory.Application.Interfaces;
 public interface IUnitOfWork
 {
     Task<IUnitOfWorkTransaction> BeginTransactionAsync();
+
+    // Forgets every entity loaded or changed so far, so a retry re-reads fresh rows instead of stale tracked copies
+    void ResetTracking();
 }
 
 // Disposing without calling CommitAsync rolls the transaction back

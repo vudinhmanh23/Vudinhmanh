@@ -61,42 +61,66 @@ public class InventoryEndpointsTests : IClassFixture<CustomWebApplicationFactory
     // ---- GET /api/products/low-stock ----
 
     [Fact]
-    public async Task LowStock_ListsOnlyProductsBelowThreshold_AndAProductDroppingBelowItAppears()
+    public async Task LowStock_ListsOnlyActiveProductsAtOrBelowReorderLevel_BiggestShortageFirst()
     {
-        var customerId = SeedCustomer();
-        var below = SeedProduct(stock: 3);
-        var atThreshold = SeedProduct(stock: 5);   // default threshold is 5: "< 5", so 5 is not low
-        var willDrop = SeedProduct(stock: 9);
+        var small = SeedProduct(stock: 8, reorderLevel: 10);       // shortage 2
+        var big = SeedProduct(stock: 0, reorderLevel: 10);         // shortage 10
+        var exactly = SeedProduct(stock: 10, reorderLevel: 10);    // at the level counts, shortage 0
+        var above = SeedProduct(stock: 11, reorderLevel: 10);      // above the level: not listed
+        var noLevel = SeedProduct(stock: 0, reorderLevel: 0);      // reorder level 0 means "not tracked": not listed
+        var inactive = SeedProduct(stock: 1, reorderLevel: 10, isActive: false);
         var client = await ClientAsync("BanHang");
 
-        var before = await client.GetFromJsonAsync<List<ProductDto>>("/api/products/low-stock");
-        Assert.Contains(before!, p => p.Id == below);
-        Assert.DoesNotContain(before!, p => p.Id == atThreshold);
-        Assert.DoesNotContain(before!, p => p.Id == willDrop);
+        var response = await client.GetAsync("/api/products/low-stock");
 
-        // Sell 6 of 9 -> 3 left, now below the threshold
-        var admin = await ClientAsync("Admin");
-        await PostOrderAsync(admin, customerId, willDrop, DateTime.UtcNow, 6, 100m);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var items = (await response.Content.ReadFromJsonAsync<List<LowStockItemDto>>())!;
+        var ours = items.Where(i => new[] { small, big, exactly, above, noLevel, inactive }.Contains(i.Id)).ToList();
 
-        var after = await client.GetFromJsonAsync<List<ProductDto>>("/api/products/low-stock");
-        Assert.Contains(after!, p => p.Id == willDrop && p.Quantity == 3);
-        Assert.All(after!, p => Assert.True(p.Quantity < 5));
+        Assert.Equal(new[] { big, small, exactly }, ours.Select(i => i.Id)); // shortage 10, 2, 0
+        Assert.Equal(new[] { 10, 2, 0 }, ours.Select(i => i.Shortage));
+        Assert.All(ours, i => Assert.Equal(10, i.ReorderLevel));
+        Assert.Equal(0, ours.Single(i => i.Id == big).StockQuantity);
+        Assert.False(string.IsNullOrEmpty(ours[0].Name));
+        Assert.False(string.IsNullOrEmpty(ours[0].Sku));
+        // Whatever else is in the shared database must obey the same rules and the same ordering
+        Assert.All(items, i => Assert.True(i.ReorderLevel > 0 && i.StockQuantity <= i.ReorderLevel));
+        Assert.Equal(items.OrderByDescending(i => i.Shortage).Select(i => i.Shortage), items.Select(i => i.Shortage));
     }
 
     [Fact]
-    public async Task LowStock_ThresholdComesFromConfiguration()
+    public async Task LowStock_IncludeInactiveQuery_DefaultsToFalse_AndTrueAddsDiscontinuedProducts()
     {
-        var productId = SeedProduct(stock: 15);
-        // Same app and database, but Inventory:LowStockThreshold overridden to 20 instead of the default 5
-        using var factory = _factory.WithWebHostBuilder(b => b.UseSetting("Inventory:LowStockThreshold", "20"));
-        var client = factory.CreateClient();
-        var token = await AuthTestHelper.RegisterAndLoginAsync(client, "Admin");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var active = SeedProduct(stock: 1, reorderLevel: 10);
+        var inactive = SeedProduct(stock: 1, reorderLevel: 10, isActive: false);
+        var client = await ClientAsync("Admin");
 
-        var low = await client.GetFromJsonAsync<List<ProductDto>>("/api/products/low-stock");
+        var byDefault = (await client.GetFromJsonAsync<List<LowStockItemDto>>("/api/products/low-stock"))!;
+        var explicitFalse = (await client.GetFromJsonAsync<List<LowStockItemDto>>("/api/products/low-stock?includeInactive=false"))!;
+        var withInactive = (await client.GetFromJsonAsync<List<LowStockItemDto>>("/api/products/low-stock?includeInactive=true"))!;
 
-        // 15 is not low under the default (5) but is under 20, so seeing it proves the configured value is used
-        Assert.Contains(low!, p => p.Id == productId);
+        Assert.DoesNotContain(byDefault, i => i.Id == inactive);
+        Assert.DoesNotContain(explicitFalse, i => i.Id == inactive);
+        Assert.Contains(byDefault, i => i.Id == active);
+        Assert.Contains(withInactive, i => i.Id == active);
+        Assert.False(Assert.Single(withInactive, i => i.Id == inactive).IsActive);
+        Assert.All(byDefault, i => Assert.True(i.IsActive));
+    }
+
+    [Fact]
+    public async Task LowStock_ProductSoldDownToItsReorderLevel_AppearsInTheList()
+    {
+        var customerId = SeedCustomer();
+        var productId = SeedProduct(stock: 9, reorderLevel: 5);
+        var client = await ClientAsync("Admin");
+
+        Assert.DoesNotContain((await client.GetFromJsonAsync<List<LowStockItemDto>>("/api/products/low-stock"))!, i => i.Id == productId);
+
+        await PostOrderAsync(client, customerId, productId, DateTime.UtcNow, 6, 100m); // 3 left, below 5
+
+        var item = Assert.Single((await client.GetFromJsonAsync<List<LowStockItemDto>>("/api/products/low-stock"))!, i => i.Id == productId);
+        Assert.Equal(3, item.StockQuantity);
+        Assert.Equal(2, item.Shortage);
     }
 
     // ---- POST /api/products/{id}/adjust-stock ----
@@ -179,7 +203,7 @@ public class InventoryEndpointsTests : IClassFixture<CustomWebApplicationFactory
         return customer.Id;
     }
 
-    private int SeedProduct(int stock)
+    private int SeedProduct(int stock, int reorderLevel = 0, bool isActive = true)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -189,6 +213,8 @@ public class InventoryEndpointsTests : IClassFixture<CustomWebApplicationFactory
             Sku = $"INV-{Guid.NewGuid():N}"[..20],
             Price = 100,
             StockQuantity = stock,
+            ReorderLevel = reorderLevel,
+            IsActive = isActive,
             CategoryId = 1,
             SupplierId = 1,
             CreatedAt = DateTime.UtcNow

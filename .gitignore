@@ -497,3 +497,6 @@ secrets-test.env
 # Uploaded product images (keep the folder, ignore the files)
 src/SalesInventory.Api/wwwroot/uploads/products/*
 !src/SalesInventory.Api/wwwroot/uploads/products/.gitkeep
+
+# Serilog rolling log files (written under logs/ next to the API)
+logs/

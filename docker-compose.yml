@@ -1,28 +1,75 @@
+# Whole system on one machine:  docker compose up --build
+#   Blazor UI : http://localhost:5081   (WEB_PORT)
+#   API       : http://localhost:5080   (API_PORT; Swagger UI: http://localhost:5080/swagger)
+# Host ports are 5080/5081, not 8080, because 8080 is often taken (for example by WSL's relay); change them in .env if needed.
+#   SQL Server: localhost:1433          (user sa, password = MSSQL_SA_PASSWORD from .env)
+# Copy .env.example to .env first and fill in MSSQL_SA_PASSWORD and JWT__KEY (the real .env is never committed).
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env (8+ characters with upper, lower, digit and symbol)}"
     ports:
-      - "1433:1433"
+      # Bound to this machine only, so the database is not offered to the network
+      - "127.0.0.1:1433:1433"
+    volumes:
+      # Named volume: the databases survive "docker compose down" (only "down -v" deletes them)
+      - sqlserver_data:/var/opt/mssql
     healthcheck:
       test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 20s
 
   api:
     build:
       context: .
-      dockerfile: Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SalesInventoryDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
-      SeedAdmin__Email: "${SEEDADMIN__EMAIL:-}"
-      SeedAdmin__Password: "${SEEDADMIN__PASSWORD:-}"
-    ports:
-      - "8080:8080"
+      dockerfile: src/SalesInventory.Api/Dockerfile
+    # depends_on waits for a healthy SQL Server at start-up, but cannot help if the database restarts later or is slow:
+    # the API exits when it cannot reach it, and Docker then starts it again until it can.
+    restart: on-failure
     depends_on:
       sqlserver:
         condition: service_healthy
+    environment:
+      # Development by default so Swagger UI is available for a local run; set ASPNETCORE_ENVIRONMENT=Production in .env
+      # for a deployment behind a TLS-terminating reverse proxy (Swagger is then off and HTTPS rules apply).
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+      # "sqlserver" is the service name above: Docker's network resolves it to that container
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SalesInventoryDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+      # Create / update the schema from the EF Core migrations when the API starts
+      Database__MigrateOnStartup: "true"
+      SeedAdmin__Email: "${SEEDADMIN__EMAIL:-}"
+      SeedAdmin__Password: "${SEEDADMIN__PASSWORD:-}"
+      # Secrets come from the environment only; the API refuses to start in production without them (or with them in a settings file)
+      Jwt__Key: "${JWT__KEY:?Set JWT__KEY in .env (32+ random characters)}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      # The Blazor server calls the API from the server side, so no browser origin needs CORS here. Set one only if a browser
+      # app on another origin calls the API directly. TRUSTEDPROXIES: the reverse proxy that ends TLS (Production only).
+      Cors__AllowedOrigins__0: "${CORS__ALLOWEDORIGINS__0:-}"
+      Hardening__TrustedProxies__0: "${HARDENING__TRUSTEDPROXIES__0:-}"
+    ports:
+      - "${API_PORT:-5080}:8080"
+    volumes:
+      - api_logs:/app/logs
+      - api_uploads:/app/wwwroot/uploads
+
+  blazor:
+    build:
+      context: .
+      dockerfile: src/SalesInventory.Web/Dockerfile
+    depends_on:
+      - api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Server-side calls go over the Docker network to the api service (not to localhost, which would be this container)
+      ApiBaseUrl: "http://api:8080"
+    ports:
+      - "${WEB_PORT:-5081}:8080"
+
+volumes:
+  sqlserver_data:
+  api_logs:
+  api_uploads:

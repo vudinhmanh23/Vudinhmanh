@@ -1,3 +1,4 @@
+using SalesInventory.Api.RateLimiting;
 using System.Reflection;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -71,35 +72,9 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthPolicies.SalesAccess, p => p.RequireRole(AppRoles.Admin, AppRoles.BanHang));
 });
 
-// Each call to the assistant costs money, so a signed-in user may ask only a limited number of questions per minute
-// (Anthropic:RequestsPerMinute, default 10). The counter is kept per user; the client IP is the fallback key.
-var assistantRequestsPerMinute = Math.Max(1, builder.Configuration.GetValue<int?>("Anthropic:RequestsPerMinute") ?? 10);
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("assistant", httpContext => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-        httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-            ?? httpContext.Connection.RemoteIpAddress?.ToString()
-            ?? "anonymous",
-        _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-        {
-            PermitLimit = assistantRequestsPerMinute,
-            Window = TimeSpan.FromMinutes(1)
-        }));
-
-    options.OnRejected = async (context, cancellationToken) =>
-    {
-        if (context.Lease.TryGetMetadata(System.Threading.RateLimiting.MetadataName.RetryAfter, out var retryAfter))
-        {
-            context.HttpContext.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
-        }
-
-        context.HttpContext.Response.ContentType = "application/problem+json";
-        await context.HttpContext.Response.WriteAsync(
-            "{\"title\":\"Too many requests.\",\"status\":429,\"detail\":\"Bạn hỏi quá nhanh, vui lòng thử lại sau ít phút.\"}",
-            cancellationToken);
-    };
-});
+// Each call to the assistant costs money, so one signed-in user may make only a limited number of calls per window
+// (AiSafety:RateLimit in appsettings.json: limit, window, algorithm). The counter is kept per user id.
+builder.Services.AddAssistantRateLimiting();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

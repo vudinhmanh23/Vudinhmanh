@@ -1,6 +1,6 @@
 namespace SalesInventory.Infrastructure.Ai;
 
-// Bound from the "Anthropic" configuration section. The API key is a secret: set it with user-secrets
+// Bound from the "Anthropic" configuration section (connection, models, rules). The limits on cost and use are in AiSafetyOptions. The API key is a secret: set it with user-secrets
 // ("Anthropic:ApiKey") or the ANTHROPIC_API_KEY environment variable, never in a committed file.
 public class AnthropicOptions
 {
@@ -20,12 +20,6 @@ public class AnthropicOptions
     // check them against the official model list at https://docs.claude.com and change them there, not in code.
     public Dictionary<string, string> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    // Upper bound for the answer length (the model's own thinking counts toward it too)
-    public int MaxTokens { get; set; } = 1024;
-
-    // Longest question accepted, in characters
-    public int MaxQuestionLength { get; set; } = 4000;
-
     // Thinking depth for the tiers that support it ("low" keeps simple Q&A cheap and fast); empty = provider default
     public string? Effort { get; set; } = "low";
 
@@ -35,15 +29,9 @@ public class AnthropicOptions
     // rebuild; "{ShopName}" is replaced by Shop:Name. It must not contain secrets. Empty = the assistant is treated as not configured.
     public string? SystemPrompt { get; set; }
 
-    // Questions one signed-in user may send per minute (the endpoint costs money per call)
-    public int RequestsPerMinute { get; set; } = 10;
-
-    // How many times the model may ask for tools before the assistant stops and answers with what it has
-    public int MaxToolRounds { get; set; } = 4;
-
-    // Resolves ModelTier to a model id, or null when the tier is unknown or has no id configured
-    public string? ResolveModel()
+    // Resolves a tier name to a model id, or null when the tier is unknown or has no id configured
+    public string? ResolveModel(string tier)
     {
-        return Models.TryGetValue(ModelTier, out var model) && !string.IsNullOrWhiteSpace(model) ? model : null;
+        return Models.TryGetValue(tier, out var model) && !string.IsNullOrWhiteSpace(model) ? model : null;
     }
 }

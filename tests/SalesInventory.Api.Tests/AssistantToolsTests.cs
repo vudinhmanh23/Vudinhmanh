@@ -367,8 +367,8 @@ public class AssistantToolsTests : IClassFixture<AssistantToolsTests.ToolsFactor
         protected override void ConfigureExtraSettings(IWebHostBuilder builder)
         {
             builder.UseSetting("Anthropic:ApiKey", "test-only-key-0123456789");
-            builder.UseSetting("Anthropic:RequestsPerMinute", "1000");
-            builder.UseSetting("Anthropic:MaxToolRounds", "2");
+            builder.UseSetting("AiSafety:RateLimit:PermitLimit", "1000");
+            builder.UseSetting("AiSafety:MaxToolRounds", "2");
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)

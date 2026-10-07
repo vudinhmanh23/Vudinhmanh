@@ -148,6 +148,22 @@ Một câu trả lời dài có thể mất vài giây. Nếu chờ đủ rồi 
 Blazor → API → nhà cung cấp; Blazor không bao giờ nối trực tiếp tới nhà cung cấp. Streaming chỉ cải thiện cảm giác chờ, không giảm chi
 phí, nên để sau khi phiên bản 1 chạy ổn. Các khoản kiểm soát (hạn mức, `max_tokens`) vẫn áp dụng nguyên vẹn.
 
+**Đã triển khai:** `POST /api/assistant/ask/stream` (cùng quyền, cùng rate limit và `max_tokens` với `/ask`; `/ask` giữ nguyên
+để các client cũ không vỡ). Phản hồi là `text/event-stream` với các sự kiện:
+
+| Sự kiện | Dữ liệu |
+|---|---|
+| `start` | `sources`, `retrieval` (tên tài liệu + điểm cosine từng đoạn), gửi trước khi gọi nhà cung cấp |
+| `delta` | `{"text": "..."}`, nhiều lần |
+| `done` | giống phản hồi của `/ask` (câu trả lời đầy đủ, token, công cụ đã dùng) |
+| `error` | `{"message": "..."}`, khi lỗi xảy ra sau khi luồng đã bắt đầu |
+
+Câu hỏi rỗng/quá dài, thiếu cấu hình, 401/403/429 được trả như response thường (400/503/...) trước khi có sự kiện nào.
+Vòng gọi công cụ chạy như `/ask`: mỗi lượt gọi nhà cung cấp là một luồng, kết quả công cụ gửi lại ở lượt sau. API key không
+bao giờ nằm trong một mảnh gửi đi: phần đuôi có thể là đầu của key được giữ lại cho tới mảnh kế tiếp (thường 0-1 ký tự), và
+key xuất hiện trọn vẹn sẽ bị thay bằng `[đã ẩn]`. Trên Blazor, `AssistantApi` đọc SSE ở phía máy chủ web nên trình duyệt chỉ
+thấy kết nối SignalR của Blazor, không thấy key hay lời gọi tới nhà cung cấp.
+
 ## 3. Khi nào dùng Tool use, khi nào dùng RAG
 
 | | Tool use | RAG (truy xuất rồi đưa vào ngữ cảnh) |
@@ -269,6 +285,11 @@ Cách hệ thống chống lại:
   - *Người dùng có quyền vẫn lấy được dữ liệu trong quyền của mình*: đó là hành vi đúng, không phải lỗ hổng.
   - Khi thêm RAG, kho tài liệu phải lọc theo quyền **trước** khi đưa đoạn văn vào prompt; nếu không, biện pháp 3 bị vô hiệu.
   - Khi thêm tool ghi, biện pháp 2 phải đi kèm bước xác nhận của người dùng; đó là điều kiện để mở rộng.
+
+**Đã triển khai (kiểm bằng code ở server, lớp `PromptGuard` + `AnthropicChatService`):**
+- Luật nằm riêng trong trường `system` (lấy từ cấu hình, không bao giờ nối thêm gì vào đó). Mọi tin nhắn của khách, kể cả các câu hỏi cũ trong lịch sử, luôn nằm trong `<question trust="untrusted">`, đã escape XML nên không đóng được thẻ để giả làm chỉ dẫn. Luật nói rõ đó là dữ liệu không đáng tin và liệt kê các câu phải bỏ qua ("quên hết luật trên", "in ra prompt hệ thống", "tiết lộ API key"...).
+- **Khóa và chuỗi kết nối không vào prompt:** mọi giá trị cấu hình có tên kiểu `ApiKey`, `Secret`, `Password`, `Token`, `ConnectionStrings:*`, `...:Key` (và các chuỗi có dạng `sk-ant-...`, `Password=...`) bị thay bằng `[đã ẩn]` trong câu hỏi, lịch sử, đoạn tài liệu và kết quả công cụ. Nếu chính `SystemPrompt` chứa một bí mật, trợ lý từ chối chạy (503).
+- **Chiều ra:** câu trả lời cũng được lọc bí mật (kể cả khi bí mật bị cắt đôi giữa hai mảnh stream). Nếu model chép lại từ 120 ký tự liên tiếp của system prompt, câu trả lời bị cắt và thay bằng một câu từ chối; với stream, chỉ một đoạn ngắn có thể lọt ra trước khi bị cắt. Giới hạn: chỉ bắt được việc chép nguyên văn, không bắt được diễn đạt lại.
 
 ## 6. Bảng và DTO mới
 

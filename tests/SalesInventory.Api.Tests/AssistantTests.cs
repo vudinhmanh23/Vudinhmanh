@@ -52,7 +52,8 @@ public class AssistantTests : IClassFixture<AssistantTests.AssistantFactory>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var answer = await response.Content.ReadFromJsonAsync<AskResponseDto>();
         Assert.Equal("Xin chào, tôi có thể giúp gì về sản phẩm?", answer!.Answer);
-        Assert.Equal("sonnet", answer.ModelTier);
+        // The attack text is short (under AiSafety:ShortQuestionMaxLength), so the cheap tier answers it
+        Assert.Equal("haiku", answer.ModelTier);
 
         var call = Assert.Single(_factory.Handler.Calls);
         Assert.Equal(FakeKey, call.ApiKeyHeader);
@@ -69,7 +70,8 @@ public class AssistantTests : IClassFixture<AssistantTests.AssistantFactory>
         // ...and the attacker's text only ever appears as the single user message, never inside "system"
         var message = Assert.Single(root.GetProperty("messages").EnumerateArray());
         Assert.Equal("user", message.GetProperty("role").GetString());
-        Assert.Equal(Attack, message.GetProperty("content").GetString());
+        // The user text is always wrapped in a tag marked untrusted, even when no document is attached
+        Assert.Equal("<question trust=\"untrusted\">" + Attack + "</question>", message.GetProperty("content").GetString());
         Assert.DoesNotContain(Attack, system);
 
         // The key lives in a header only: not in the prompt, not in the body
@@ -150,7 +152,7 @@ public class AssistantTests : IClassFixture<AssistantTests.AssistantFactory>
         protected override void ConfigureExtraSettings(IWebHostBuilder builder)
         {
             builder.UseSetting("Anthropic:ApiKey", FakeKey);
-            builder.UseSetting("Anthropic:RequestsPerMinute", "3");
+            builder.UseSetting("AiSafety:RateLimit:PermitLimit", "3");
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)

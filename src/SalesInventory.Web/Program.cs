@@ -22,6 +22,7 @@ builder.Services.AddScoped<JwtAuthenticationStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<JwtAuthenticationStateProvider>());
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<CatalogApi>();
+builder.Services.AddScoped<AssistantApi>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddTransient<AuthMessageHandler>();
 

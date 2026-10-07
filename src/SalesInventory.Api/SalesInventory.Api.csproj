@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Knowledge documents (.md/.txt) read by the ingestion service; shipped with a publish -->
+    <Content Include="Knowledge/**/*.md;Knowledge/**/*.txt" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SalesInventory.Application\SalesInventory.Application.csproj" />
     <ProjectReference Include="..\SalesInventory.Infrastructure\SalesInventory.Infrastructure.csproj" />
   </ItemGroup>

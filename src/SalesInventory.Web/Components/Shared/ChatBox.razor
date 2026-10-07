@@ -1,0 +1,314 @@
+@using SalesInventory.Web.Models
+@implements IAsyncDisposable
+@inject AssistantApi Api
+@inject IJSRuntime JS
+
+@* Chat with the assistant. It talks only to this app's own API (POST /api/chat/stream and GET /api/chat/{id} through
+   AssistantApi, on the web server); the AI key lives in the API's configuration, so nothing in this component or in the
+   browser can see it. The conversation is kept by the API: give this component a ConversationId (the page takes it from
+   the URL) and it loads the saved messages, so a reload shows the history again. *@
+
+<div class="chat-header">
+    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="NewConversationAsync" disabled="@busy">Cuộc trò chuyện mới</button>
+</div>
+
+<div class="chat-box" aria-live="polite" @ref="box">
+    @if (loadingHistory)
+    {
+        <p class="text-muted mb-0" role="status">Đang tải lịch sử…</p>
+    }
+    else if (messages.Count == 0)
+    {
+        <p class="text-muted mb-0">Ví dụ: "Chính sách bảo hành máy giặt ABC là bao lâu?"</p>
+    }
+
+    @foreach (var message in messages)
+    {
+        <div class="chat-message @(message.FromUser ? "chat-user" : "chat-assistant")">
+            @* Rendered as text (Blazor encodes it), so nothing the model writes can inject markup *@
+            <div class="chat-text">@message.Text</div>
+
+            @if (message.Streaming)
+            {
+                <div class="chat-typing" role="status">
+                    @(message.Text.Length == 0 ? "Đang trả lời…" : "Đang viết…")<span class="chat-cursor">▍</span>
+                </div>
+            }
+
+            @if (message.Retrieval.Count > 0)
+            {
+                <div class="chat-sources">
+                    Nguồn:
+                    @foreach (var chunk in message.Retrieval)
+                    {
+                        <span class="badge text-bg-light" title="Độ tương đồng cosine">@chunk.SourceTitle (@chunk.Score.ToString("0.00"))</span>
+                    }
+                </div>
+            }
+
+            <div class="chat-time">
+                <time datetime="@message.CreatedAt.ToString("o")" title="@message.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")">@FormatTime(message.CreatedAt)</time>
+                @if (message.Stopped)
+                {
+                    <span> · đã dừng</span>
+                }
+            </div>
+        </div>
+    }
+
+    @if (error is not null)
+    {
+        <div class="alert alert-danger mb-0" role="alert">@error</div>
+    }
+</div>
+
+<EditForm Model="input" OnValidSubmit="SendAsync" FormName="chatbox" class="chat-form">
+    <InputText class="form-control" @bind-Value="input.Text" maxlength="2000" placeholder="Nhập câu hỏi..." disabled="@(busy || loadingHistory)" autocomplete="off" />
+    @if (busy)
+    {
+        <button type="button" class="btn btn-outline-danger" @onclick="Cancel" title="Dừng câu trả lời đang chạy; phần đã viết được giữ lại">Hủy</button>
+    }
+    else
+    {
+        <button type="submit" class="btn btn-primary" disabled="@loadingHistory">Gửi</button>
+    }
+</EditForm>
+
+@code {
+    /// <summary>The conversation to show (from the URL); null = a new, empty one.</summary>
+    [Parameter] public Guid? ConversationId { get; set; }
+
+    /// <summary>Raised when the shown conversation changes by itself: a new id after the first message (null after "new conversation").</summary>
+    [Parameter] public EventCallback<Guid?> ConversationChanged { get; set; }
+
+    /// <summary>Raised after an answer is complete or was cancelled with some text kept (the page can refresh its list).</summary>
+    [Parameter] public EventCallback Answered { get; set; }
+
+    private sealed class ChatMessage
+    {
+        public bool FromUser { get; init; }
+        public string Text { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+        public bool Streaming { get; set; }
+        public bool Stopped { get; set; }
+        public List<AssistantChunk> Retrieval { get; set; } = new();
+    }
+
+    private sealed class InputModel
+    {
+        public string Text { get; set; } = string.Empty;
+    }
+
+    private readonly List<ChatMessage> messages = new();
+    private readonly InputModel input = new();
+    private ElementReference box;
+    private IJSObjectReference? scroller;
+    private CancellationTokenSource? cts;
+    private Guid? conversationId;
+    private bool initialized;
+    private bool busy;
+    private bool loadingHistory;
+    private bool forceScroll;
+    private string? error;
+
+    // The login token sits in the browser's session storage, which needs JS interop: nothing can be loaded before the first
+    // interactive render. (The page only creates this component after it has checked that the user is signed in.)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            initialized = true;
+            scroller = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Shared/ChatBox.razor.js");
+            if (ConversationId is not null)
+            {
+                await ShowConversationAsync(ConversationId);
+            }
+
+            return;
+        }
+
+        // After every redraw (each streamed piece, a loaded history) keep the newest text in view
+        if (scroller is not null)
+        {
+            var force = forceScroll;
+            forceScroll = false;
+            try
+            {
+                await scroller.InvokeVoidAsync("follow", box, force);
+            }
+            catch (JSDisconnectedException)
+            {
+                // The browser went away while a piece was still arriving
+            }
+        }
+    }
+
+    // The URL changed to another conversation (a link in the list, or "new"). Our own id changing after the first message
+    // arrives here too, but then it equals conversationId and nothing is reloaded.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (initialized && !busy && ConversationId != conversationId)
+        {
+            await ShowConversationAsync(ConversationId);
+        }
+    }
+
+    private async Task ShowConversationAsync(Guid? id)
+    {
+        messages.Clear();
+        error = null;
+        conversationId = id;
+        if (id is null)
+        {
+            return;
+        }
+
+        loadingHistory = true;
+        StateHasChanged();
+        try
+        {
+            foreach (var saved in await Api.GetMessagesAsync(id.Value))
+            {
+                // The API stores UTC; the JSON has no "Z", so say it is UTC before converting for display
+                messages.Add(new ChatMessage
+                {
+                    FromUser = saved.Role == "user",
+                    Text = saved.Content,
+                    CreatedAt = DateTime.SpecifyKind(saved.CreatedAt, DateTimeKind.Utc)
+                });
+            }
+
+            forceScroll = true;
+        }
+        catch (AssistantRequestException ex)
+        {
+            // Not found / not yours / no connection: show why and start from an empty box
+            error = ex.Message;
+            conversationId = null;
+        }
+        finally
+        {
+            loadingHistory = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SendAsync()
+    {
+        var text = input.Text.Trim();
+        if (text.Length == 0 || busy || loadingHistory)
+        {
+            return;
+        }
+
+        input.Text = string.Empty;
+        error = null;
+        busy = true;
+        forceScroll = true;
+        messages.Add(new ChatMessage { FromUser = true, Text = text });
+        var reply = new ChatMessage { Streaming = true };
+        messages.Add(reply);
+        var source = cts = new CancellationTokenSource();
+
+        // Show the user's message and the "đang trả lời…" indicator right away, before the first byte comes back
+        StateHasChanged();
+
+        var answered = false;
+        try
+        {
+            await foreach (var streamEvent in Api.ChatStreamAsync(conversationId, text, source.Token))
+            {
+                switch (streamEvent.Kind)
+                {
+                    case AssistantEventKind.Start:
+                        reply.Retrieval = streamEvent.Retrieval.ToList();
+                        if (streamEvent.ConversationId is { } started && started != conversationId)
+                        {
+                            // A new conversation exists now: remember it (before telling the page, which puts it in the URL)
+                            conversationId = started;
+                            await ConversationChanged.InvokeAsync(started);
+                        }
+
+                        break;
+                    case AssistantEventKind.Delta:
+                        reply.Text += streamEvent.Text;
+                        break;
+                    case AssistantEventKind.Done:
+                        reply.Text = streamEvent.Text;
+                        answered = true;
+                        break;
+                    case AssistantEventKind.Error:
+                        error = streamEvent.Text;
+                        break;
+                }
+
+                // Redraw after every piece, so the text appears as it is written instead of all at once
+                StateHasChanged();
+            }
+        }
+        catch (AssistantRequestException ex)
+        {
+            error = ex.Message;
+        }
+        catch (Exception) when (source.IsCancellationRequested)
+        {
+            // "Hủy": whatever the cancel interrupts (the request, a read, the stream), it is expected, not an error.
+            // The API saw the cancel too, stopped the call to the model and kept the text it had streamed.
+            reply.Stopped = reply.Text.Length > 0;
+            answered = reply.Text.Length > 0;
+        }
+        finally
+        {
+            reply.Streaming = false;
+            if (reply.Text.Length == 0)
+            {
+                messages.Remove(reply);
+            }
+
+            busy = false;
+            cts = null;
+            source.Dispose();
+        }
+
+        if (answered)
+        {
+            await Answered.InvokeAsync();
+        }
+    }
+
+    // Cancelling the token ends the HTTP request, which makes the API cancel its call to the model
+    private void Cancel() => cts?.Cancel();
+
+    // Forget the conversation, so the next message starts a fresh one (the server creates its id) without the old context;
+    // the old conversation stays saved and in the history list
+    private async Task NewConversationAsync()
+    {
+        messages.Clear();
+        error = null;
+        conversationId = null;
+        await ConversationChanged.InvokeAsync(null);
+    }
+
+    // Today: just the time; another day: with the date. Local time of the web server.
+    private static string FormatTime(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        return local.Date == DateTime.Now.Date ? local.ToString("HH:mm") : local.ToString("dd/MM HH:mm");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        cts?.Cancel();
+        if (scroller is not null)
+        {
+            try
+            {
+                await scroller.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is already gone
+            }
+        }
+    }
+}

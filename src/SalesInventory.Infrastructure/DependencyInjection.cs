@@ -61,6 +61,30 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
         });
 
+        // RAG: embeddings provider (Voyage by default; the key may come from VOYAGE_API_KEY), knowledge retrieval and ingestion
+        services.Configure<EmbeddingOptions>(configuration.GetSection(EmbeddingOptions.SectionName));
+        services.PostConfigure<EmbeddingOptions>(o =>
+        {
+            if (string.IsNullOrWhiteSpace(o.ApiKey))
+            {
+                o.ApiKey = configuration["VOYAGE_API_KEY"];
+            }
+        });
+        services.Configure<KnowledgeOptions>(configuration.GetSection(KnowledgeOptions.SectionName));
+        services.AddHttpClient<IEmbeddingService, HttpEmbeddingService>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<EmbeddingOptions>>().Value;
+            client.BaseAddress = new Uri(options.ResolveBaseUrl());
+            client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+        });
+        // The limits on cost and use: bound from "AiSafety" and checked at startup, so a bad number stops the app
+        services.AddOptions<AiSafetyOptions>().Bind(configuration.GetSection(AiSafetyOptions.SectionName)).ValidateOnStart();
+        services.AddSingleton<IValidateOptions<AiSafetyOptions>, AiSafetyOptionsValidator>();
+        services.AddSingleton<PromptGuard>();
+        services.AddScoped<IConversationStore, ConversationStore>();
+        services.AddScoped<IKnowledgeRetriever, RagRetriever>();
+        services.AddScoped<IDocumentIngestionService, DocumentIngestionService>();
+
         // Product images from the internet: SSRF-safe downloader plus the Open Food Facts barcode lookup
         services.AddSingleton<IRemoteImageDownloader, SafeImageDownloader>();
         services.AddHttpClient<IProductImageLookup, OpenFoodFactsImageLookup>(client =>

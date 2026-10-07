@@ -20,10 +20,39 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
     public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+    public DbSet<KnowledgeChunk> KnowledgeChunks => Set<KnowledgeChunk>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<Conversation>(entity =>
+        {
+            entity.Property(c => c.UserId).IsRequired().HasMaxLength(450);
+            entity.Property(c => c.Title).IsRequired().HasMaxLength(200);
+            // "My conversations, newest first"
+            entity.HasIndex(c => new { c.UserId, c.UpdatedAt });
+            entity.HasMany(c => c.Messages).WithOne(m => m.Conversation).HasForeignKey(m => m.ConversationId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChatMessage>(entity =>
+        {
+            entity.Property(m => m.Role).IsRequired().HasMaxLength(20);
+            entity.Property(m => m.Content).IsRequired();
+            // The latest N turns of one conversation
+            entity.HasIndex(m => new { m.ConversationId, m.Id });
+        });
+
+        modelBuilder.Entity<KnowledgeChunk>(entity =>
+        {
+            entity.Property(k => k.SourceTitle).IsRequired().HasMaxLength(300);
+            entity.Property(k => k.Content).IsRequired();
+            entity.Property(k => k.Embedding).IsRequired();
+            // Re-ingesting a document looks its chunks up by title
+            entity.HasIndex(k => k.SourceTitle);
+        });
 
         modelBuilder.Entity<Category>(entity =>
         {

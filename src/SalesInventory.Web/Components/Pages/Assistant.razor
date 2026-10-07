@@ -1,0 +1,79 @@
+@page "/assistant"
+@page "/assistant/{ConversationId:guid}"
+@using SalesInventory.Web.Models
+@inject NavigationManager Navigation
+@inject AssistantApi Api
+@inject TokenStore Tokens
+
+<PageTitle>Trợ lý AI - SalesInventory</PageTitle>
+
+<h1>Trợ lý AI</h1>
+
+<p class="text-muted">Hỏi về sản phẩm, tồn kho, giá, đơn hàng và chính sách cửa hàng. Câu trả lời hiện dần khi trợ lý viết; lịch sử được lưu nên tải lại trang vẫn còn.</p>
+
+<div class="assistant-layout">
+    <aside class="assistant-history" aria-label="Lịch sử hội thoại">
+        <h2 class="h6">Lịch sử</h2>
+        @if (conversations.Count == 0)
+        {
+            <p class="text-muted small mb-0">Chưa có cuộc trò chuyện nào.</p>
+        }
+        else
+        {
+            <ul class="list-unstyled mb-0">
+                @foreach (var conversation in conversations)
+                {
+                    <li>
+                        <a href="/assistant/@conversation.Id" class="@(conversation.Id == ConversationId ? "active" : null)" title="@conversation.Title">@conversation.Title</a>
+                    </li>
+                }
+            </ul>
+        }
+    </aside>
+
+    <section class="assistant-chat">
+        @* Created only after the sign-in check below, because loading history needs the login token *@
+        @if (ready)
+        {
+            <ChatBox ConversationId="ConversationId" ConversationChanged="OnConversationChanged" Answered="RefreshListAsync" />
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter] public Guid? ConversationId { get; set; }
+
+    private List<ConversationSummary> conversations = new();
+    private bool ready;
+
+    // Session storage needs JS interop, so check the sign-in after the first interactive render
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(await Tokens.GetAsync()))
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        ready = true;
+        await RefreshListAsync();
+    }
+
+    private async Task RefreshListAsync()
+    {
+        conversations = await Api.ListConversationsAsync();
+        StateHasChanged();
+    }
+
+    // The URL follows the conversation, so F5 (or a bookmark) reopens it. replace: the first message does not add a history entry.
+    private async Task OnConversationChanged(Guid? id)
+    {
+        Navigation.NavigateTo(id is null ? "/assistant" : $"/assistant/{id}", replace: true);
+        await RefreshListAsync();
+    }
+}

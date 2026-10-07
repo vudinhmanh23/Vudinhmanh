@@ -1,0 +1,40 @@
+.assistant-layout {
+    display: grid;
+    grid-template-columns: 16rem 1fr;
+    gap: 1rem;
+    align-items: start;
+}
+
+.assistant-history {
+    padding: var(--space);
+    background-color: var(--surface-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.assistant-history li + li {
+    margin-top: 0.25rem;
+}
+
+.assistant-history a {
+    display: block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-decoration: none;
+}
+
+.assistant-history a:hover,
+.assistant-history a.active {
+    background-color: #e7f1ff;
+}
+
+@media (max-width: 768px) {
+    .assistant-layout {
+        grid-template-columns: 1fr;
+    }
+}

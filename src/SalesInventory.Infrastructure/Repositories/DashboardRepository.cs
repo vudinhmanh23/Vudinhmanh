@@ -66,6 +66,55 @@ public class DashboardRepository : IDashboardRepository
             .SumAsync(o => (decimal?)o.TotalAmount) ?? 0m;
     }
 
+    public async Task<IReadOnlyList<RevenuePoint>> GetRevenueByPeriodAsync(DateTime from, DateTime toExclusive, RevenueGroupBy groupBy)
+    {
+        var orders = _context.SalesOrders
+            .AsNoTracking()
+            .Where(o => o.Status == SalesOrderStatus.Completed && o.OrderDate >= from && o.OrderDate < toExclusive);
+
+        // Each branch is one GROUP BY with SUM/COUNT in SQL; only one row per bucket comes back.
+        // Part is the month (day/month) or the quarter; Day is 0 unless grouping by day.
+        var rows = groupBy switch
+        {
+            RevenueGroupBy.Day => await orders
+                .GroupBy(o => new { o.OrderDate.Year, o.OrderDate.Month, o.OrderDate.Day })
+                .Select(g => new BucketRow { Year = g.Key.Year, Part = g.Key.Month, Day = g.Key.Day, Revenue = g.Sum(o => o.TotalAmount), Count = g.Count() })
+                .ToListAsync(),
+            RevenueGroupBy.Quarter => await orders
+                .GroupBy(o => new { o.OrderDate.Year, Quarter = (o.OrderDate.Month - 1) / 3 + 1 })
+                .Select(g => new BucketRow { Year = g.Key.Year, Part = g.Key.Quarter, Day = 0, Revenue = g.Sum(o => o.TotalAmount), Count = g.Count() })
+                .ToListAsync(),
+            _ => await orders
+                .GroupBy(o => new { o.OrderDate.Year, o.OrderDate.Month })
+                .Select(g => new BucketRow { Year = g.Key.Year, Part = g.Key.Month, Day = 0, Revenue = g.Sum(o => o.TotalAmount), Count = g.Count() })
+                .ToListAsync()
+        };
+
+        // Turn the already aggregated keys into the first day of each bucket, oldest first
+        return rows
+            .Select(r => new RevenuePoint(
+                groupBy switch
+                {
+                    RevenueGroupBy.Day => new DateTime(r.Year, r.Part, r.Day),
+                    RevenueGroupBy.Quarter => new DateTime(r.Year, (r.Part - 1) * 3 + 1, 1),
+                    _ => new DateTime(r.Year, r.Part, 1)
+                },
+                r.Revenue,
+                r.Count))
+            .OrderBy(p => p.PeriodStart)
+            .ToList();
+    }
+
+    // Shape shared by the three GROUP BY queries above
+    private sealed class BucketRow
+    {
+        public int Year { get; init; }
+        public int Part { get; init; }
+        public int Day { get; init; }
+        public decimal Revenue { get; init; }
+        public int Count { get; init; }
+    }
+
     public async Task<IReadOnlyList<DashboardLowStockItemDto>> GetLowStockItemsAsync(int limit)
     {
         // Same predicate as LowStockCount, so the list and the card always agree

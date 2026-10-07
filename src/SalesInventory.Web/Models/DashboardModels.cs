@@ -12,3 +12,6 @@ public record DashboardSummary(
 
 /// <summary>One product in the "important alerts" list.</summary>
 public record LowStockAlert(int Id, string Name, int StockQuantity, int LowStockThreshold);
+
+/// <summary>One bucket of GET /api/reports/revenue; Period is yyyy-MM-dd, yyyy-MM or yyyy-Qn. PreviousYear* are set only when compare=true.</summary>
+public record RevenueByPeriod(string Period, decimal Revenue, int OrderCount, decimal? PreviousYearRevenue = null, int? PreviousYearOrderCount = null);

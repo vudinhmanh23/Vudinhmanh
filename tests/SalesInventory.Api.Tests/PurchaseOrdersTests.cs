@@ -202,7 +202,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Create_GeneratesSequentialCodePerDay()
+    public async Task Create_TwoOrdersOnTheSameDay_GenerateSequentialCodes()
     {
         var client = await AdminClientAsync();
         var p = await AddProductAsync(stock: 0);
@@ -229,7 +229,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Create_ClientSuppliedTotalsAreIgnored()
+    public async Task Create_ClientSuppliedTotals_AreRecomputedByTheServer()
     {
         var client = await AdminClientAsync();
         var p = await AddProductAsync(stock: 0);
@@ -443,7 +443,7 @@ public class PurchaseOrdersTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task ProductMovements_ReturnsHistoryNewestFirst()
+    public async Task ProductMovements_ProductWithSeveralMovements_ReturnsNewestFirst()
     {
         var client = await AdminClientAsync();
         var p = await AddProductAsync(stock: 10);

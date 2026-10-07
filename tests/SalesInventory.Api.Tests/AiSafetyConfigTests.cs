@@ -49,36 +49,9 @@ public class AiSafetyConfigTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            builder.ConfigureLogging(logging => logging.AddProvider(new CaptureProvider(_logs)));
+            builder.ConfigureServices(services => services.AddSingleton<Serilog.Core.ILogEventSink>(new CaptureSink(_logs)));
             builder.ConfigureServices(services =>
                 services.AddHttpClient<IChatService, AnthropicChatService>().ConfigurePrimaryHttpMessageHandler(() => Handler));
-        }
-    }
-
-    private sealed class CaptureProvider : ILoggerProvider
-    {
-        private readonly ConcurrentQueue<string> _messages;
-
-        public CaptureProvider(ConcurrentQueue<string> messages) => _messages = messages;
-
-        public ILogger CreateLogger(string categoryName) => new Capture(_messages);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class Capture : ILogger
-        {
-            private readonly ConcurrentQueue<string> _messages;
-
-            public Capture(ConcurrentQueue<string> messages) => _messages = messages;
-
-            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-                => _messages.Enqueue(formatter(state, exception));
         }
     }
 

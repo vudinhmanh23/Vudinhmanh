@@ -133,36 +133,6 @@ public class CostControlTests : IClassFixture<CostControlTests.CostFactory>
         Assert.Equal(new[] { "haiku", "sonnet" }, _factory.Logs.Where(l => l.Contains("Assistant usage")).Select(l => l.Contains("tier=haiku") ? "haiku" : "sonnet"));
     }
 
-    // Keeps every formatted log message so a test can read what was logged
-    private sealed class CaptureLoggerProvider : ILoggerProvider
-    {
-        private readonly ConcurrentQueue<string> _messages;
-
-        public CaptureLoggerProvider(ConcurrentQueue<string> messages) => _messages = messages;
-
-        public ILogger CreateLogger(string categoryName) => new CaptureLogger(_messages);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class CaptureLogger : ILogger
-        {
-            private readonly ConcurrentQueue<string> _messages;
-
-            public CaptureLogger(ConcurrentQueue<string> messages) => _messages = messages;
-
-            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-            {
-                _messages.Enqueue(formatter(state, exception));
-            }
-        }
-    }
-
     public sealed class CostFactory : CustomWebApplicationFactory
     {
         private readonly ConcurrentQueue<string> _logs = new();
@@ -183,7 +153,7 @@ public class CostControlTests : IClassFixture<CostControlTests.CostFactory>
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            builder.ConfigureLogging(logging => logging.AddProvider(new CaptureLoggerProvider(_logs)));
+            builder.ConfigureServices(services => services.AddSingleton<Serilog.Core.ILogEventSink>(new CaptureSink(_logs)));
             builder.ConfigureServices(services =>
                 services.AddHttpClient<IChatService, AnthropicChatService>().ConfigurePrimaryHttpMessageHandler(() => Handler));
         }

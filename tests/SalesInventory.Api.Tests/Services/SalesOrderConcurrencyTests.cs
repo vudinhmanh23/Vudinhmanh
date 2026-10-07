@@ -1,4 +1,3 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SalesInventory.Application.Exceptions;
@@ -10,33 +9,21 @@ using SalesInventory.Infrastructure.Repositories;
 
 namespace SalesInventory.Api.Tests.Services;
 
-// Skipped (not failed) when SQL Server LocalDB is not installed on the machine running the tests
-public sealed class LocalDbFactAttribute : FactAttribute
+// Skipped (not failed) when Docker is not available on the machine running the tests
+public sealed class DockerSqlFactAttribute : FactAttribute
 {
-    public LocalDbFactAttribute()
+    public DockerSqlFactAttribute()
     {
-        try
-        {
-            using var connection = new SqlConnection(SalesOrderConcurrencyTests.MasterConnectionString);
-            connection.Open();
-        }
-        catch (Exception ex)
-        {
-            Skip = $"SQL Server LocalDB is not available: {ex.GetType().Name}";
-        }
+        Skip = TestDatabase.UnavailableReason;
     }
 }
 
-// Real SQL Server engine (throwaway LocalDB database): real rowversion, real row locks, real transactions.
+// Real SQL Server engine (a throwaway database on the Testcontainers SQL Server): real rowversion, real row locks, real transactions.
 // The EF InMemory/SQLite providers cannot prove any of this.
 public sealed class SalesOrderConcurrencyTests : IDisposable
 {
-    public const string MasterConnectionString =
-        @"Server=(localdb)\MSSQLLocalDB;Database=master;Integrated Security=true;Connect Timeout=5;TrustServerCertificate=true";
-
     private readonly string _databaseName = $"SalesInventory_RaceTests_{Guid.NewGuid():N}";
-    private string ConnectionString =>
-        $@"Server=(localdb)\MSSQLLocalDB;Database={_databaseName};Integrated Security=true;TrustServerCertificate=true";
+    private string ConnectionString => TestDatabase.ConnectionStringFor(_databaseName);
 
     private AppDbContext NewContext() =>
         new(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(ConnectionString).Options);
@@ -50,7 +37,7 @@ public sealed class SalesOrderConcurrencyTests : IDisposable
         new UnitOfWork(db),
         NullLogger<SalesOrderService>.Instance);
 
-    [LocalDbFact]
+    [DockerSqlFact]
     public async Task ParallelSales_OfTheSameProduct_NeverMakeStockNegative_AndLedgerMatches()
     {
         const int initialStock = 10;
@@ -127,7 +114,7 @@ public sealed class SalesOrderConcurrencyTests : IDisposable
 
     // The stock-row guard on its own: in the full service race above, the unique order number also makes
     // buyers collide early, so this test pins the RowVersion behaviour that protects the deduction itself
-    [LocalDbFact]
+    [DockerSqlFact]
     public async Task TwoWritersOnTheSameProductRow_SecondOneIsRejected_SoNoDeductionIsLost()
     {
         await using (var setup = NewContext())
@@ -152,7 +139,7 @@ public sealed class SalesOrderConcurrencyTests : IDisposable
     }
 
     // The InMemory provider would accept any LINQ; running on SQL Server proves the filter and ordering translate to SQL
-    [LocalDbFact]
+    [DockerSqlFact]
     public async Task LowStockQuery_RunsAsSqlOnSqlServer_WithFilterAndShortageOrdering()
     {
         await using (var setup = NewContext())
@@ -172,7 +159,7 @@ public sealed class SalesOrderConcurrencyTests : IDisposable
     }
 
     // Cross-checks the repository's aggregates against a hand-written SQL statement and against decimal math in C#
-    [LocalDbFact]
+    [DockerSqlFact]
     public async Task InventorySummary_MatchesAReferenceSqlQuery_ToTheLastCent()
     {
         await using (var setup = NewContext())
@@ -209,7 +196,7 @@ public sealed class SalesOrderConcurrencyTests : IDisposable
         Assert.Equal(1, summary.LowStockProducts);
     }
 
-    [LocalDbFact]
+    [DockerSqlFact]
     public async Task DatabaseCheckConstraint_RejectsNegativeStock_EvenWhenAppCodeIsBypassed()
     {
         await using (var setup = NewContext())
@@ -231,7 +218,7 @@ public sealed class SalesOrderConcurrencyTests : IDisposable
         }
         catch
         {
-            // LocalDB missing or database never created: nothing to clean up
+            // Docker missing or database never created: nothing to clean up
         }
     }
 }

@@ -108,7 +108,7 @@ public class InventoryEndpointsTests : IClassFixture<CustomWebApplicationFactory
     }
 
     [Fact]
-    public async Task LowStock_AProductThatSellsDownToItsReorderLevelAppears()
+    public async Task LowStock_ProductSoldDownToItsReorderLevel_AppearsInTheList()
     {
         var customerId = SeedCustomer();
         var productId = SeedProduct(stock: 9, reorderLevel: 5);

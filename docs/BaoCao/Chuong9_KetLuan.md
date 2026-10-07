@@ -10,7 +10,7 @@ Phần cốt lõi đã đạt được:
 - **Tồn kho không âm khi nhiều người bán cùng lúc,** dựa trên ba lớp bảo vệ: kiểm tra trong service trong một giao dịch, khóa lạc quan `RowVersion` kèm vòng thử lại, và ràng buộc CHECK ở cơ sở dữ liệu. Điều này được kiểm chứng bằng test chạy trên SQL Server thật.
 - **Phân quyền ba vai trò** trên JWT, có kiểm thử ma trận quyền.
 - **Trợ lý AI** dùng công cụ tra cứu dữ liệu thật và tìm tài liệu chính sách (RAG), với các lớp bảo vệ ở phía máy chủ (che bí mật, giới hạn chi phí và tần suất).
-- **Kiểm thử tự động:** 644 test, 643 đạt, 0 lỗi, 1 bỏ qua.
+- **Kiểm thử tự động:** 649 test, 648 đạt, 0 lỗi, 1 bỏ qua.
 
 ## 9.2. Bài học
 
@@ -22,8 +22,8 @@ Phần cốt lõi đã đạt được:
 
 ## 9.3. Hạn chế
 
-Hệ thống còn các hạn chế đã trình bày ở Chương 8, đáng kể nhất là: sổ kho chưa phủ đường sửa sản phẩm và tồn đầu kỳ, chưa có chức năng hủy đơn bán, nhiều chức năng của API chưa có trên giao diện, bảo mật đăng nhập mới ở mức ghi nhận chứ chưa chặn, và chưa kiểm chứng trợ lý với mô hình thật cũng như triển khai trên máy chủ thật.
+Hệ thống còn các hạn chế đã trình bày ở Chương 8, đáng kể nhất là: dữ liệu có trước bản sửa sổ kho còn thiếu dòng giải thích tồn, chưa có chức năng hủy đơn bán, nhiều chức năng của API chưa có trên giao diện, bảo mật đăng nhập mới ở mức ghi nhận chứ chưa chặn, và chưa kiểm chứng trợ lý với mô hình thật cũng như triển khai trên máy chủ thật.
 
 ## 9.4. Hướng phát triển
 
-Ngắn hạn là đóng các đường đổi tồn không ghi sổ, thêm hủy đơn bán có hoàn kho và bổ sung các trang giao diện còn thiếu. Trung hạn là refresh token, giới hạn tần suất đăng nhập, nhật ký kiểm toán và TLS trong triển khai. Dài hạn là nhiều kho, thanh toán và công nợ, cơ sở dữ liệu vector cho tìm kiếm tài liệu (Chương 8, mục 8.8). Các mục này là đề xuất, chưa được cài đặt.
+Ngắn hạn là bù sổ kho cho dữ liệu cũ, thêm hủy đơn bán có hoàn kho và bổ sung các trang giao diện còn thiếu. Trung hạn là refresh token, giới hạn tần suất đăng nhập, nhật ký kiểm toán và TLS trong triển khai. Dài hạn là nhiều kho, thanh toán và công nợ, cơ sở dữ liệu vector cho tìm kiếm tài liệu (Chương 8, mục 8.8). Các mục này là đề xuất, chưa được cài đặt.

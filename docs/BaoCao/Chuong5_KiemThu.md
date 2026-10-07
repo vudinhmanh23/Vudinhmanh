@@ -19,9 +19,9 @@ Lệnh: `dotnet test` tại thư mục gốc của solution.
 
 | Project | Tổng | Đạt | Lỗi | Bỏ qua | Thời gian |
 |---|--:|--:|--:|--:|---|
-| `SalesInventory.Tests` | 57 | 57 | 0 | 0 | 142 ms |
-| `SalesInventory.Api.Tests` | 587 | 586 | 0 | 1 | 1 phút 30 giây |
-| **Cộng** | **644** | **643** | **0** | **1** | |
+| `SalesInventory.Tests` | 57 | 57 | 0 | 0 | 122 ms |
+| `SalesInventory.Api.Tests` | 592 | 591 | 0 | 1 | 1 phút 49 giây |
+| **Cộng** | **649** | **648** | **0** | **1** | |
 
 *Bảng 5.1. Kết quả một lần chạy `dotnet test`. Số "tổng" tính cả các ca sinh ra từ `[Theory]`, vì thế lớn hơn số phương thức test.*
 
@@ -55,14 +55,15 @@ Danh sách dưới đây nêu tên lớp test có trong thư mục `tests/`. Ch�
 
 > **Lưu ý.** Một test có thể xác nhận hành vi hiện tại chứ không chứng minh hành vi đó là đúng. Bộ test từng không phát hiện lỗi `POST /api/auth/register` cho người lạ tự chọn vai trò `Admin`: chính `AuthTestHelper` dùng lỗ hổng này để tạo tài khoản Admin và Kho cho hàng chục test. Lỗi được phát hiện khi đọc code. Sau khi sửa, `AuthTestHelper` tạo tài khoản Admin/Kho qua `POST /api/admin/users` bằng một Admin có sẵn (`CustomWebApplicationFactory` đặt `SeedAdmin:*`), và `RegistrationSecurityTests` kiểm tra quy tắc mới.
 
-Hai lớp test thêm sau khi sửa hai lỗi tìm thấy lúc rà soát báo cáo (13 ca, gồm cả các ca sinh từ `[Theory]`):
+Ba lớp test thêm sau khi sửa ba lỗi tìm thấy lúc rà soát báo cáo (18 ca, gồm cả các ca sinh từ `[Theory]`):
 
-| Lớp test | Kiểm tra | Lỗi cũ (đã xác nhận khi gỡ bản sửa: 6 ca đỏ) |
+| Lớp test | Kiểm tra | Lỗi cũ (đã xác nhận khi gỡ bản sửa: 10 ca đỏ) |
 |---|---|---|
 | `RegistrationSecurityTests` | Người lạ đăng ký `Admin` hoặc `Kho` bị từ chối 403 và không tạo tài khoản; đăng ký không chọn vai trò, hoặc `BanHang`, thành công với đúng một vai trò `BanHang`; vai trò không tồn tại trả 400; `BanHang` đã đăng nhập không tự nâng quyền; `Admin` đăng nhập tạo được tài khoản `Kho` | Người lạ đăng ký được tài khoản `Admin` |
 | `ProductDeleteTests` | Xóa sản phẩm chưa có chứng từ trả 204; sản phẩm không tồn tại trả 404; sản phẩm đã nằm trong phiếu nhập, đơn bán, hoặc chỉ có dòng sổ kho trả 409 (`application/problem+json`) và sản phẩm vẫn còn | Xóa sản phẩm có chứng từ làm khóa ngoại thất bại và API không trả 409 (ba ca xóa bị từ chối đều đỏ khi gỡ bản sửa) |
+| `StockLedgerReconciliationTests` | Tạo sản phẩm có tồn đầu kỳ ghi đúng một dòng `Adjustment` (`RefType = "InitialStock"`); tồn bằng 0 thì không ghi dòng nào; sửa sản phẩm bỏ qua trường `quantity` và không ghi dòng; một form mở trước một đơn bán không ghi đè được đơn bán đó; sau chuỗi tạo, nhập, bán, điều chỉnh, sửa thì tổng `Quantity` của sổ kho bằng tồn và dòng cuối có `StockAfter` bằng tồn | Tồn kho đổi mà không có dòng sổ giải thích; form cũ ghi đè đơn bán (4 trên 5 ca đỏ) |
 
-Cách kiểm chứng: gỡ tạm các thay đổi trong `src/` bằng `git stash`, chạy hai lớp test (6 ca đỏ), rồi khôi phục (toàn bộ xanh).
+Cách kiểm chứng: gỡ tạm các thay đổi trong `src/` bằng `git stash`, chạy các lớp test mới (10 ca đỏ), rồi khôi phục (toàn bộ xanh).
 
 ### 5.3.4. Sản phẩm, nhà cung cấp, khách hàng
 

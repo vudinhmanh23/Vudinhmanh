@@ -126,7 +126,7 @@ GVHD: [Họ tên giảng viên]
 
 - JWT hết hạn sau 60 phút; phân quyền ba vai trò
 - Production từ chối chạy nếu bí mật nằm trong file
-- **644 test, 643 đạt, 0 lỗi, 1 bỏ qua**
+- **649 test, 648 đạt, 0 lỗi, 1 bỏ qua**
 - Test đồng thời chạy trên SQL Server thật
 
 <!-- Chạy lại dotnet test trước khi bảo vệ và cập nhật số. Test bị bỏ qua là test gọi mô hình AI thật, cần khóa API. Dùng SQL Server thật vì InMemory không có rowversion và khóa dòng. Không nói an toàn tuyệt đối. (1 phút) -->
@@ -146,7 +146,7 @@ GVHD: [Họ tên giảng viên]
 
 # Kết quả đạt được
 
-| 74 | 12 | 644 | 8 → 1 |
+| 74 | 12 | 649 | 8 → 1 |
 |---|---|---|---|
 | endpoint | bảng | test tự động | câu SQL khi tạo đơn |
 
@@ -163,7 +163,7 @@ GVHD: [Họ tên giảng viên]
 - Giao diện thiếu danh sách đơn, tải hóa đơn
 - Hướng phát triển: hủy đơn có hoàn kho, báo cáo lãi lỗ
 
-<!-- Nói hạn chế trước khi hội đồng hỏi. Có thể kể ngắn: khi rà soát báo cáo bằng cách đối chiếu với code, đã phát hiện và sửa hai lỗi (đăng ký công khai cho chọn Admin; xóa sản phẩm đã có chứng từ không trả thông báo rõ), mỗi lỗi có test riêng. Đăng ký công khai vẫn còn và chỉ tạo tài khoản BanHang. (45 giây) -->
+<!-- Nói hạn chế trước khi hội đồng hỏi. Có thể kể ngắn: khi rà soát báo cáo bằng cách đối chiếu với code, đã phát hiện và sửa ba lỗi (đăng ký công khai cho chọn Admin; xóa sản phẩm đã có chứng từ không trả thông báo rõ; sửa sản phẩm đổi tồn mà không ghi sổ kho), mỗi lỗi có test riêng. Đăng ký công khai vẫn còn và chỉ tạo tài khoản BanHang. (45 giây) -->
 
 ---
 

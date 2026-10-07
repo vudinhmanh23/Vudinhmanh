@@ -8,7 +8,7 @@ Bảng dưới đối chiếu các mục tiêu ở Chương 1 (mục 1.3.2) vớ
 |---|---|---|---|
 | M1. Quản lý sản phẩm, danh mục, nhà cung cấp, khách hàng | Một phần | API đầy đủ và có kiểm thử (Chương 3, 5) | Giao diện chỉ hoàn chỉnh cho sản phẩm; các trang danh mục, nhà cung cấp, khách hàng mới có tiêu đề; khách chỉ thêm nhanh được ở quầy bán hàng |
 | M2. Phiếu nhập làm tăng tồn, đơn bán làm giảm tồn | Đạt (API) | Kiểm thử nghiệp vụ kho và HTTP (Chương 5) | Giao diện chỉ có lập phiếu nhập (duyệt ngay) và quầy bán hàng; chưa có danh sách, duyệt, hủy riêng lẻ |
-| M3. Ghi sổ kho | Một phần | Nhập, bán, điều chỉnh và đảo phiếu nhập đều ghi `StockMovements` | Tồn đầu kỳ khi tạo sản phẩm và việc sửa tồn qua sửa sản phẩm không ghi sổ (Chương 8, hạn chế 1) |
+| M3. Ghi sổ kho | Đạt (dữ liệu mới) | Nhập, bán, điều chỉnh, đảo phiếu nhập và tồn đầu kỳ đều ghi `StockMovements`; sửa sản phẩm không đổi tồn; test đối soát tổng sổ kho với tồn (`StockLedgerReconciliationTests`) | Dữ liệu có trước bản sửa (sản phẩm mẫu trong migration, sản phẩm tạo trước đây) có tồn mà thiếu dòng sổ (Chương 8, hạn chế 1) |
 | M4. Tồn kho không âm khi bán đồng thời | Đạt | Test song song trên SQL Server thật; ràng buộc CHECK ở CSDL chặn tồn âm ở mọi đường | |
 | M5. Phân quyền ba vai trò trên JWT | Đạt | Kiểm thử ma trận quyền; lỗi cho người lạ tự đăng ký `Admin` đã được sửa và có test | Không có refresh token, không thu hồi token (hạn chế 11) |
 | M6. Dashboard, báo cáo doanh thu, xuất PDF và Excel | Một phần | Dashboard và báo cáo hiển thị trên giao diện; hóa đơn và báo cáo xuất file có ở API | Giao diện chưa có nút tải hóa đơn PDF hay báo cáo PDF, Excel |
@@ -17,9 +17,9 @@ Bảng dưới đối chiếu các mục tiêu ở Chương 1 (mục 1.3.2) vớ
 
 ## 7.2. Kết quả kiểm thử
 
-Một lần chạy `dotnet test` toàn solution (Chương 5, bảng 5.1) cho kết quả: **644 test, 643 đạt, 0 lỗi, 1 bỏ qua**. Test bị bỏ qua là test gọi mô hình AI thật, chỉ chạy khi có khóa API. Các test về tranh chấp đồng thời chạy trên SQL Server thật qua Testcontainers.
+Một lần chạy `dotnet test` toàn solution (Chương 5, bảng 5.1) cho kết quả: **649 test, 648 đạt, 0 lỗi, 1 bỏ qua**. Test bị bỏ qua là test gọi mô hình AI thật, chỉ chạy khi có khóa API. Các test về tranh chấp đồng thời chạy trên SQL Server thật qua Testcontainers.
 
-Hai lỗi được phát hiện khi đối chiếu báo cáo với mã nguồn (người lạ tự đăng ký tài khoản `Admin`; xóa sản phẩm đã có chứng từ không trả thông báo rõ) đã được sửa, mỗi lỗi có test riêng; khi gỡ bản sửa, 6 ca test chuyển sang đỏ (Chương 5, mục 5.3.3; Chương 8, mục 8.7).
+Ba lỗi được phát hiện khi đối chiếu báo cáo với mã nguồn (người lạ tự đăng ký tài khoản `Admin`; xóa sản phẩm đã có chứng từ không trả thông báo rõ; sửa hoặc tạo sản phẩm đổi tồn kho mà không ghi sổ kho) đã được sửa, mỗi lỗi có test riêng; khi gỡ bản sửa, 10 ca test chuyển sang đỏ (Chương 5, mục 5.3.3; Chương 8, mục 8.7).
 
 > Số liệu này cần chạy lại bằng `dotnet test` ngay trước khi nộp báo cáo.
 

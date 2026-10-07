@@ -2,7 +2,7 @@
 
 **Cách dùng.** Mỗi câu có gợi ý trả lời 3-4 câu và bằng chứng trong code (đường dẫn kèm số dòng). Số dòng đúng tại thời điểm viết (07/10/2026, nhánh `feat/stock-ledger-and-race-safety`, chưa commit các thay đổi mới nhất); mở lại file trước khi bảo vệ để chắc chắn. Các câu trả lời chỉ nói những gì code có, không hứa tính năng chưa làm. Nhóm 5 có chỗ `[điền]` vì quy trình làm việc cá nhân của bạn không nằm trong code, bạn phải tự điền sự thật.
 
-**Số liệu dùng trong câu trả lời** (lần chạy `dotnet test` ngày 07/10/2026): 644 test, 643 đạt, 0 lỗi, 1 bỏ qua. Chạy lại trước khi bảo vệ.
+**Số liệu dùng trong câu trả lời** (lần chạy `dotnet test` ngày 07/10/2026): 649 test, 648 đạt, 0 lỗi, 1 bỏ qua. Chạy lại trước khi bảo vệ.
 
 ---
 
@@ -49,7 +49,7 @@
 
 ### Câu 5. Tồn kho vừa lưu trong `Products.StockQuantity` vừa có sổ kho `StockMovements`. Không dư thừa sao? Nếu hai con số lệch nhau thì sao?
 
-**Gợi ý.** Đúng là dư thừa có chủ ý: `StockQuantity` để đọc nhanh, `StockMovements` để truy vết. Mỗi dòng sổ ghi `Quantity` có dấu và `StockAfter`, và các luồng nhập, bán, điều chỉnh, đảo phiếu nhập cập nhật hai nơi trong cùng một giao dịch. Nhưng sổ kho **không đầy đủ**: tạo sản phẩm với tồn đầu kỳ và sửa trường tồn kho qua `PUT /api/products/{id}` đổi `StockQuantity` mà không ghi sổ (`ProductService.UpdateProductAsync`), nên hai con số có thể lệch. Em coi đây là một khiếm khuyết đã biết và nêu ở phần hạn chế. Sổ kho liên kết chứng từ qua `RefType` và `RefId` chứ không có khóa ngoại, đổi lại không ràng buộc ở mức CSDL. Test `ParallelSales_OfTheSameProduct_NeverMakeStockNegative_AndLedgerMatches` kiểm tra sổ kho khớp tồn sau các đơn bán song song (không bao gồm đường sửa sản phẩm); chưa có công cụ đối soát cho dữ liệu thật.
+**Gợi ý.** Đúng là dư thừa có chủ ý: `StockQuantity` để đọc nhanh, `StockMovements` để truy vết. Mỗi dòng sổ ghi `Quantity` có dấu và `StockAfter`, và các luồng nhập, bán, điều chỉnh, đảo phiếu nhập cập nhật hai nơi trong cùng một giao dịch. Trước đây sổ kho **không đầy đủ**: tạo sản phẩm với tồn đầu kỳ và sửa trường tồn kho qua `PUT /api/products/{id}` đổi `StockQuantity` mà không ghi sổ. Em đã sửa: tạo sản phẩm ghi một dòng tồn đầu kỳ (`ProductService.CreateProductAsync`), còn sửa sản phẩm bỏ qua trường tồn (`UpdateProductAsync`), và có test đối soát. Phần còn lại là dữ liệu có trước bản sửa (ví dụ sản phẩm mẫu trong migration) vẫn thiếu dòng sổ, em nêu ở phần hạn chế. Sổ kho liên kết chứng từ qua `RefType` và `RefId` chứ không có khóa ngoại, đổi lại không ràng buộc ở mức CSDL. Test `ParallelSales_OfTheSameProduct_NeverMakeStockNegative_AndLedgerMatches` kiểm tra sổ kho khớp tồn sau các đơn bán song song, và `StockLedgerReconciliationTests` kiểm tra tổng sổ kho bằng tồn sau chuỗi tạo, nhập, bán, điều chỉnh, sửa; chưa có công cụ đối soát cho dữ liệu thật.
 
 **Bằng chứng.**
 - `src/SalesInventory.Domain/Entities/StockMovement.cs` (`Quantity`, `StockAfter`, `RefType`, `RefId`).
@@ -102,7 +102,7 @@
 
 ### Câu 10. Bạn có bao nhiêu test và chúng thực sự kiểm tra điều gì? Có gì chưa được kiểm thử?
 
-**Gợi ý.** Lần chạy gần nhất có 644 test, 643 đạt, 0 lỗi, 1 bỏ qua (test gọi mô hình AI thật). Phần mạnh nhất là nghiệp vụ kho (nhập, bán, tranh chấp đồng thời trên SQL Server thật), phân quyền và các lớp an toàn của trợ lý. Chưa có gì kiểm thử giao diện Blazor ngoài `BlazorChatClientTests`, và chưa có đo tải; số liệu trong `PERFORMANCE.md` là số câu SQL trên dữ liệu ít dòng, không phải tốc độ dưới tải. Test xanh không chứng minh chương trình đúng: ví dụ lỗi đăng ký Admin từng nằm im trong khi hơn 600 test xanh.
+**Gợi ý.** Lần chạy gần nhất có 649 test, 648 đạt, 0 lỗi, 1 bỏ qua (test gọi mô hình AI thật). Phần mạnh nhất là nghiệp vụ kho (nhập, bán, tranh chấp đồng thời trên SQL Server thật), phân quyền và các lớp an toàn của trợ lý. Chưa có gì kiểm thử giao diện Blazor ngoài `BlazorChatClientTests`, và chưa có đo tải; số liệu trong `PERFORMANCE.md` là số câu SQL trên dữ liệu ít dòng, không phải tốc độ dưới tải. Test xanh không chứng minh chương trình đúng: ví dụ lỗi đăng ký Admin từng nằm im trong khi hơn 600 test xanh.
 
 **Bằng chứng.**
 - `docs/BaoCao/Chuong5_KiemThu.md` (bảng 5.1, mục 5.4).
@@ -142,7 +142,7 @@
 
 ### Câu 14. Làm sao bạn biết mã do AI sinh ra là đúng? Có lần nào AI sinh sai không?
 
-**Gợi ý.** Em không tin vào mã chỉ vì nó biên dịch được: em dựa vào test (644 test, trong đó có test chạy trên SQL Server thật) `[điền: những đoạn em tự đọc lại]`. Bằng chứng cụ thể: khi rà soát báo cáo bằng cách đối chiếu với code (làm cùng công cụ AI), em và công cụ phát hiện hai lỗi nằm sẵn trong kho mã (đăng ký công khai cho chọn Admin, và xóa sản phẩm có chứng từ trả lỗi không rõ), đã sửa và thêm test, rồi gỡ bản sửa để chắc chắn test thật sự bắt được lỗi cũ (6 ca đỏ). Các tài liệu thiết kế ban đầu (`SRS.md`, `BACKLOG.md`) ghi tính năng không có trong code (ví dụ khóa tài khoản 15 phút sau 5 lần đăng nhập sai, refresh token, audit log, vai trò tên `ADMIN/WAREHOUSE/SALES` thay vì `Admin/Kho/BanHang`), nên em chỉ dựa vào code khi viết báo cáo. `[điền: nêu thêm một lỗi hay quyết định mà em tự phát hiện, nếu có]`.
+**Gợi ý.** Em không tin vào mã chỉ vì nó biên dịch được: em dựa vào test (649 test, trong đó có test chạy trên SQL Server thật) `[điền: những đoạn em tự đọc lại]`. Bằng chứng cụ thể: khi rà soát báo cáo bằng cách đối chiếu với code (làm cùng công cụ AI), em và công cụ phát hiện ba lỗi nằm sẵn trong kho mã (đăng ký công khai cho chọn Admin; xóa sản phẩm có chứng từ trả lỗi không rõ; sửa hoặc tạo sản phẩm đổi tồn kho mà không ghi sổ kho), đã sửa và thêm test, rồi gỡ bản sửa để chắc chắn test thật sự bắt được lỗi cũ (10 ca đỏ). Các tài liệu thiết kế ban đầu (`SRS.md`, `BACKLOG.md`) ghi tính năng không có trong code (ví dụ khóa tài khoản 15 phút sau 5 lần đăng nhập sai, refresh token, audit log, vai trò tên `ADMIN/WAREHOUSE/SALES` thay vì `Admin/Kho/BanHang`), nên em chỉ dựa vào code khi viết báo cáo. `[điền: nêu thêm một lỗi hay quyết định mà em tự phát hiện, nếu có]`.
 
 **Bằng chứng.**
 - `tests/SalesInventory.Api.Tests/RegistrationSecurityTests.cs`, `ProductDeleteTests.cs`.
@@ -162,4 +162,4 @@
 
 - Nói rõ "em chưa kiểm chứng điều này" thay vì đoán. Ví dụ: giới hạn số người dùng đồng thời của Blazor Server, hành vi mô hình AI thật trước prompt injection, hiệu năng dưới tải.
 - Trỏ sang bằng chứng: mở file test hoặc chạy lệnh `dotnet test --filter` cho một lớp test cụ thể (ví dụ `SalesOrderConcurrencyTests`) nếu hội đồng muốn thấy tận mắt.
-- Nếu hội đồng chỉ ra một lỗi thật, ghi nhận và nói cách sửa cùng cách kiểm chứng; hai lỗi vừa sửa là ví dụ tốt về quy trình này.
+- Nếu hội đồng chỉ ra một lỗi thật, ghi nhận và nói cách sửa cùng cách kiểm chứng; ba lỗi vừa sửa là ví dụ tốt về quy trình này.

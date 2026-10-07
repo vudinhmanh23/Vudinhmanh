@@ -357,7 +357,7 @@ Các index bổ sung: `CategoryId`, `Name`, `SalePrice`, và `StockQuantity` (k�
 
 #### `StockMovements` (sổ kho, `Domain/Entities/StockMovement.cs`)
 
-Các lần nhập (duyệt phiếu), bán, điều chỉnh tay và đảo phiếu nhập đều sinh một dòng, nên các biến động đó truy vết được. **Ngoại lệ:** tồn đầu kỳ khi tạo sản phẩm và giá trị `Tồn kho` khi sửa sản phẩm (`PUT /api/products/{id}`) được ghi thẳng vào `Products.StockQuantity` mà không sinh dòng sổ kho (xem Chương 8).
+Các lần nhập (duyệt phiếu), bán, điều chỉnh tay, đảo phiếu nhập và tồn đầu kỳ khi tạo sản phẩm (`RefType = "InitialStock"`) đều sinh một dòng. Sửa sản phẩm (`PUT /api/products/{id}`) **không** đổi tồn kho: trường `quantity` của yêu cầu được nhận nhưng bị bỏ qua, nên tồn chỉ đổi qua các chứng từ có ghi sổ. Nhờ vậy tổng `Quantity` của sổ kho một sản phẩm bằng `StockQuantity` của nó (có test đối soát). Dữ liệu có trước bản sửa thì khác, xem Chương 8, hạn chế 1.
 
 | Cột | Ý nghĩa |
 |---|---|

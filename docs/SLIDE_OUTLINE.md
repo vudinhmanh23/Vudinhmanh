@@ -148,10 +148,10 @@ Nói trợ lý lấy số liệu từ công cụ chứ không từ trí nhớ c�
 - JWT hết hạn sau 60 phút; phân quyền theo vai trò
 - Production từ chối chạy nếu bí mật nằm trong file
 - Log không chứa mật khẩu, token, khóa API
-- 644 test, 643 đạt, 0 lỗi, 1 bỏ qua
+- 649 test, 648 đạt, 0 lỗi, 1 bỏ qua
 - Test đồng thời chạy trên SQL Server thật
 
-**Hình:** ảnh chụp kết quả `dotnet test` (dòng "Passed! ... Total: 587"), và biểu đồ cột hai project: 57 và 587.
+**Hình:** ảnh chụp kết quả `dotnet test` (dòng "Passed! ... Total: 592"), và biểu đồ cột hai project: 57 và 592.
 
 **Ghi chú trình bày (khoảng 1 phút)**
 Nêu số test chính xác như trên màn hình. Giải thích vì sao dùng SQL Server thật cho test đồng thời: InMemory không có `rowversion` và khóa dòng. Chủ động nói test bị bỏ qua là test gọi mô hình thật, cần khóa API. Không nói "hệ thống an toàn tuyệt đối".
@@ -178,11 +178,11 @@ Có hướng dẫn VPS trong `README-deploy.md`. **Chỉ nói đã triển khai 
 **Nội dung trên slide**
 - 74 endpoint trên 16 controller
 - 12 bảng, 29 migration
-- 644 test tự động, 0 lỗi
+- 649 test tự động, 0 lỗi
 - Truy vấn tạo đơn: 8 sản phẩm còn 1 câu SQL
 - Đủ quy trình nhập, bán, kiểm kho, báo cáo
 
-**Hình:** bảng bốn ô số liệu lớn (74, 12, 644, 1 câu SQL), và ảnh dashboard.
+**Hình:** bảng bốn ô số liệu lớn (74, 12, 649, 1 câu SQL), và ảnh dashboard.
 
 **Ghi chú trình bày (khoảng 45 giây)**
 Số 74 là số thuộc tính HTTP đếm trong các controller; số 8→1 câu SQL lấy từ `PERFORMANCE.md` (đo trên dữ liệu ít dòng, nên chỉ nói về số câu lệnh, không nói về tốc độ). Không dùng từ "hoàn hảo" hay "vượt trội".
@@ -200,7 +200,7 @@ Số 74 là số thuộc tính HTTP đếm trong các controller; số 8→1 câ
 **Hình:** bảng hai cột "Hạn chế" và "Hướng khắc phục".
 
 **Ghi chú trình bày (khoảng 45 giây)**
-Nói hạn chế trước khi hội đồng hỏi; điều đó tạo uy tín. Có thể kể ngắn rằng khi rà soát báo cáo bằng cách đối chiếu với code, bạn đã phát hiện và sửa hai lỗi (đăng ký công khai cho chọn vai trò Admin; xóa sản phẩm đã có chứng từ không trả thông báo rõ), mỗi lỗi có test riêng. Điều đó cho thấy quy trình kiểm chứng, chứ không phải điểm yếu còn sót lại. Nhắc đăng ký công khai vẫn còn và chỉ tạo tài khoản BanHang.
+Nói hạn chế trước khi hội đồng hỏi; điều đó tạo uy tín. Có thể kể ngắn rằng khi rà soát báo cáo bằng cách đối chiếu với code, bạn đã phát hiện và sửa ba lỗi (đăng ký công khai cho chọn vai trò Admin; xóa sản phẩm đã có chứng từ không trả thông báo rõ; sửa sản phẩm đổi tồn mà không ghi sổ kho), mỗi lỗi có test riêng. Điều đó cho thấy quy trình kiểm chứng, chứ không phải điểm yếu còn sót lại. Nhắc đăng ký công khai vẫn còn và chỉ tạo tài khoản BanHang.
 
 ---
 

@@ -249,7 +249,7 @@ Cột "Mức cài đặt" ghi nơi chức năng dùng được: **API** (có end
 | Mã | Yêu cầu | Cách đáp ứng và kiểm chứng |
 |---|---|---|
 | NFR-01 | **Toàn vẹn tồn kho:** tồn không âm | Kiểm tra trong service, `RowVersion`, ràng buộc CHECK; test đồng thời trên SQL Server thật (Chương 4, 5) |
-| NFR-02 | **Truy vết biến động kho** | Bảng `StockMovements` cho nhập, bán, điều chỉnh (chưa phủ đường sửa sản phẩm, xem Chương 8) |
+| NFR-02 | **Truy vết biến động kho** | Bảng `StockMovements` cho nhập, bán, điều chỉnh (kể cả tồn đầu kỳ khi tạo sản phẩm; sửa sản phẩm không đổi tồn; dữ liệu có trước bản sửa xem Chương 8) |
 | NFR-03 | **Xác thực và phân quyền** | JWT, ba vai trò, kiểm thử ma trận quyền |
 | NFR-04 | **Bảo vệ bí mật** | Bí mật chỉ từ biến môi trường ở Production; che bí mật trong log và trong nội dung gửi tới mô hình AI |
 | NFR-05 | **Kiểm soát chi phí trợ lý AI** | Giới hạn token, độ dài câu hỏi, số vòng công cụ, tần suất mỗi người dùng; ghi chi phí ước tính vào log |
@@ -631,7 +631,7 @@ Các index bổ sung: `CategoryId`, `Name`, `SalePrice`, và `StockQuantity` (k�
 
 #### `StockMovements` (sổ kho, `Domain/Entities/StockMovement.cs`)
 
-Các lần nhập (duyệt phiếu), bán, điều chỉnh tay và đảo phiếu nhập đều sinh một dòng, nên các biến động đó truy vết được. **Ngoại lệ:** tồn đầu kỳ khi tạo sản phẩm và giá trị `Tồn kho` khi sửa sản phẩm (`PUT /api/products/{id}`) được ghi thẳng vào `Products.StockQuantity` mà không sinh dòng sổ kho (xem Chương 8).
+Các lần nhập (duyệt phiếu), bán, điều chỉnh tay, đảo phiếu nhập và tồn đầu kỳ khi tạo sản phẩm (`RefType = "InitialStock"`) đều sinh một dòng. Sửa sản phẩm (`PUT /api/products/{id}`) **không** đổi tồn kho: trường `quantity` của yêu cầu được nhận nhưng bị bỏ qua, nên tồn chỉ đổi qua các chứng từ có ghi sổ. Nhờ vậy tổng `Quantity` của sổ kho một sản phẩm bằng `StockQuantity` của nó (có test đối soát). Dữ liệu có trước bản sửa thì khác, xem Chương 8, hạn chế 1.
 
 | Cột | Ý nghĩa |
 |---|---|
@@ -1036,7 +1036,7 @@ Quy tắc phụ thuộc: `Domain` không tham chiếu project nào; `Application
 
 ### 4.3.1. Sổ kho `StockMovement`
 
-Các luồng nghiệp vụ đổi tồn kho (duyệt, hủy, xóa phiếu nhập; bán; điều chỉnh) ghi một dòng vào `StockMovements` cùng giao dịch với việc đổi `Products.StockQuantity`. Hai đường đổi tồn **không** ghi sổ: đặt tồn đầu kỳ khi tạo sản phẩm (`CreateProductAsync`) và ghi đè `StockQuantity` bằng giá trị client gửi khi sửa sản phẩm (`ProductService.UpdateProductAsync`, dòng `existing.StockQuantity = product.StockQuantity`); xem Chương 8. Mỗi dòng lưu số lượng có dấu (`Quantity`), tồn sau khi đổi (`StockAfter`), loại biến động (`StockMovementType`: `Import`, `Sale`, `Adjustment`) và chứng từ nguồn (`RefType`, `RefId`, `Reference`).
+Mọi đường đổi tồn kho đều ghi một dòng vào `StockMovements` cùng giao dịch với việc đổi `Products.StockQuantity`: duyệt, hủy, xóa phiếu nhập; bán; điều chỉnh; và đặt tồn đầu kỳ khi tạo sản phẩm (`ProductService.CreateProductAsync`, dòng `Adjustment` với `RefType = "InitialStock"`, chỉ ghi khi tồn đầu kỳ lớn hơn 0). Sửa sản phẩm (`UpdateProductAsync`) cố ý **không** đổi `StockQuantity`: trường `quantity` của yêu cầu bị bỏ qua, vì một giá trị ghi thẳng sẽ không có dòng sổ nào giải thích và một form mở trước một đơn bán sẽ ghi đè đơn bán đó. Trên giao diện, ô "Tồn kho" của form sửa bị vô hiệu hóa. Xóa sản phẩm chỉ có dòng tồn đầu kỳ thì dọn các dòng đó cùng giao dịch; có chứng từ nào khác thì bị chặn (HTTP 409). Mỗi dòng lưu số lượng có dấu (`Quantity`), tồn sau khi đổi (`StockAfter`), loại biến động (`StockMovementType`: `Import`, `Sale`, `Adjustment`) và chứng từ nguồn (`RefType`, `RefId`, `Reference`).
 
 | Tình huống | Nơi cài đặt | Dòng sổ kho |
 |---|---|---|
@@ -1044,6 +1044,7 @@ Các luồng nghiệp vụ đổi tồn kho (duyệt, hủy, xóa phiếu nhập
 | Hủy phiếu nhập đã duyệt | `PurchaseOrderService.CancelPurchaseOrderAsync` | `Adjustment`, số âm |
 | Xóa phiếu nhập đã duyệt | `PurchaseOrderService.DeletePurchaseOrderAsync` | `Sale`, số âm (khác với hủy, xem Chương 8) |
 | Tạo đơn bán | `SalesOrderService.PlaceOrderAsync` | `Sale`, số âm, `RefType = "SalesOrder"` |
+| Tạo sản phẩm có tồn đầu kỳ | `ProductService.CreateProductAsync` | `Adjustment`, số dương, `RefType = "InitialStock"`, `RefId = 0` |
 | Điều chỉnh tay hoặc kiểm kê | `StockMovementService.ApplyAsync` | `Adjustment`, `RefType = "ManualAdjustment"`, `RefId = 0`, ghi chú là lý do bắt buộc |
 
 ### 4.3.2. Giao dịch và an toàn khi đồng thời
@@ -1241,9 +1242,9 @@ Lệnh: `dotnet test` tại thư mục gốc của solution.
 
 | Project | Tổng | Đạt | Lỗi | Bỏ qua | Thời gian |
 |---|--:|--:|--:|--:|---|
-| `SalesInventory.Tests` | 57 | 57 | 0 | 0 | 142 ms |
-| `SalesInventory.Api.Tests` | 587 | 586 | 0 | 1 | 1 phút 30 giây |
-| **Cộng** | **644** | **643** | **0** | **1** | |
+| `SalesInventory.Tests` | 57 | 57 | 0 | 0 | 122 ms |
+| `SalesInventory.Api.Tests` | 592 | 591 | 0 | 1 | 1 phút 49 giây |
+| **Cộng** | **649** | **648** | **0** | **1** | |
 
 *Bảng 5.1. Kết quả một lần chạy `dotnet test`. Số "tổng" tính cả các ca sinh ra từ `[Theory]`, vì thế lớn hơn số phương thức test.*
 
@@ -1277,14 +1278,15 @@ Danh sách dưới đây nêu tên lớp test có trong thư mục `tests/`. Ch�
 
 > **Lưu ý.** Một test có thể xác nhận hành vi hiện tại chứ không chứng minh hành vi đó là đúng. Bộ test từng không phát hiện lỗi `POST /api/auth/register` cho người lạ tự chọn vai trò `Admin`: chính `AuthTestHelper` dùng lỗ hổng này để tạo tài khoản Admin và Kho cho hàng chục test. Lỗi được phát hiện khi đọc code. Sau khi sửa, `AuthTestHelper` tạo tài khoản Admin/Kho qua `POST /api/admin/users` bằng một Admin có sẵn (`CustomWebApplicationFactory` đặt `SeedAdmin:*`), và `RegistrationSecurityTests` kiểm tra quy tắc mới.
 
-Hai lớp test thêm sau khi sửa hai lỗi tìm thấy lúc rà soát báo cáo (13 ca, gồm cả các ca sinh từ `[Theory]`):
+Ba lớp test thêm sau khi sửa ba lỗi tìm thấy lúc rà soát báo cáo (18 ca, gồm cả các ca sinh từ `[Theory]`):
 
-| Lớp test | Kiểm tra | Lỗi cũ (đã xác nhận khi gỡ bản sửa: 6 ca đỏ) |
+| Lớp test | Kiểm tra | Lỗi cũ (đã xác nhận khi gỡ bản sửa: 10 ca đỏ) |
 |---|---|---|
 | `RegistrationSecurityTests` | Người lạ đăng ký `Admin` hoặc `Kho` bị từ chối 403 và không tạo tài khoản; đăng ký không chọn vai trò, hoặc `BanHang`, thành công với đúng một vai trò `BanHang`; vai trò không tồn tại trả 400; `BanHang` đã đăng nhập không tự nâng quyền; `Admin` đăng nhập tạo được tài khoản `Kho` | Người lạ đăng ký được tài khoản `Admin` |
 | `ProductDeleteTests` | Xóa sản phẩm chưa có chứng từ trả 204; sản phẩm không tồn tại trả 404; sản phẩm đã nằm trong phiếu nhập, đơn bán, hoặc chỉ có dòng sổ kho trả 409 (`application/problem+json`) và sản phẩm vẫn còn | Xóa sản phẩm có chứng từ làm khóa ngoại thất bại và API không trả 409 (ba ca xóa bị từ chối đều đỏ khi gỡ bản sửa) |
+| `StockLedgerReconciliationTests` | Tạo sản phẩm có tồn đầu kỳ ghi đúng một dòng `Adjustment` (`RefType = "InitialStock"`); tồn bằng 0 thì không ghi dòng nào; sửa sản phẩm bỏ qua trường `quantity` và không ghi dòng; một form mở trước một đơn bán không ghi đè được đơn bán đó; sau chuỗi tạo, nhập, bán, điều chỉnh, sửa thì tổng `Quantity` của sổ kho bằng tồn và dòng cuối có `StockAfter` bằng tồn | Tồn kho đổi mà không có dòng sổ giải thích; form cũ ghi đè đơn bán (4 trên 5 ca đỏ) |
 
-Cách kiểm chứng: gỡ tạm các thay đổi trong `src/` bằng `git stash`, chạy hai lớp test (6 ca đỏ), rồi khôi phục (toàn bộ xanh).
+Cách kiểm chứng: gỡ tạm các thay đổi trong `src/` bằng `git stash`, chạy các lớp test mới (10 ca đỏ), rồi khôi phục (toàn bộ xanh).
 
 ### 5.3.4. Sản phẩm, nhà cung cấp, khách hàng
 
@@ -1426,7 +1428,7 @@ Bảng dưới đối chiếu các mục tiêu ở Chương 1 (mục 1.3.2) vớ
 |---|---|---|---|
 | M1. Quản lý sản phẩm, danh mục, nhà cung cấp, khách hàng | Một phần | API đầy đủ và có kiểm thử (Chương 3, 5) | Giao diện chỉ hoàn chỉnh cho sản phẩm; các trang danh mục, nhà cung cấp, khách hàng mới có tiêu đề; khách chỉ thêm nhanh được ở quầy bán hàng |
 | M2. Phiếu nhập làm tăng tồn, đơn bán làm giảm tồn | Đạt (API) | Kiểm thử nghiệp vụ kho và HTTP (Chương 5) | Giao diện chỉ có lập phiếu nhập (duyệt ngay) và quầy bán hàng; chưa có danh sách, duyệt, hủy riêng lẻ |
-| M3. Ghi sổ kho | Một phần | Nhập, bán, điều chỉnh và đảo phiếu nhập đều ghi `StockMovements` | Tồn đầu kỳ khi tạo sản phẩm và việc sửa tồn qua sửa sản phẩm không ghi sổ (Chương 8, hạn chế 1) |
+| M3. Ghi sổ kho | Đạt (dữ liệu mới) | Nhập, bán, điều chỉnh, đảo phiếu nhập và tồn đầu kỳ đều ghi `StockMovements`; sửa sản phẩm không đổi tồn; test đối soát tổng sổ kho với tồn (`StockLedgerReconciliationTests`) | Dữ liệu có trước bản sửa (sản phẩm mẫu trong migration, sản phẩm tạo trước đây) có tồn mà thiếu dòng sổ (Chương 8, hạn chế 1) |
 | M4. Tồn kho không âm khi bán đồng thời | Đạt | Test song song trên SQL Server thật; ràng buộc CHECK ở CSDL chặn tồn âm ở mọi đường | |
 | M5. Phân quyền ba vai trò trên JWT | Đạt | Kiểm thử ma trận quyền; lỗi cho người lạ tự đăng ký `Admin` đã được sửa và có test | Không có refresh token, không thu hồi token (hạn chế 11) |
 | M6. Dashboard, báo cáo doanh thu, xuất PDF và Excel | Một phần | Dashboard và báo cáo hiển thị trên giao diện; hóa đơn và báo cáo xuất file có ở API | Giao diện chưa có nút tải hóa đơn PDF hay báo cáo PDF, Excel |
@@ -1435,9 +1437,9 @@ Bảng dưới đối chiếu các mục tiêu ở Chương 1 (mục 1.3.2) vớ
 
 ## 7.2. Kết quả kiểm thử
 
-Một lần chạy `dotnet test` toàn solution (Chương 5, bảng 5.1) cho kết quả: **644 test, 643 đạt, 0 lỗi, 1 bỏ qua**. Test bị bỏ qua là test gọi mô hình AI thật, chỉ chạy khi có khóa API. Các test về tranh chấp đồng thời chạy trên SQL Server thật qua Testcontainers.
+Một lần chạy `dotnet test` toàn solution (Chương 5, bảng 5.1) cho kết quả: **649 test, 648 đạt, 0 lỗi, 1 bỏ qua**. Test bị bỏ qua là test gọi mô hình AI thật, chỉ chạy khi có khóa API. Các test về tranh chấp đồng thời chạy trên SQL Server thật qua Testcontainers.
 
-Hai lỗi được phát hiện khi đối chiếu báo cáo với mã nguồn (người lạ tự đăng ký tài khoản `Admin`; xóa sản phẩm đã có chứng từ không trả thông báo rõ) đã được sửa, mỗi lỗi có test riêng; khi gỡ bản sửa, 6 ca test chuyển sang đỏ (Chương 5, mục 5.3.3; Chương 8, mục 8.7).
+Ba lỗi được phát hiện khi đối chiếu báo cáo với mã nguồn (người lạ tự đăng ký tài khoản `Admin`; xóa sản phẩm đã có chứng từ không trả thông báo rõ; sửa hoặc tạo sản phẩm đổi tồn kho mà không ghi sổ kho) đã được sửa, mỗi lỗi có test riêng; khi gỡ bản sửa, 10 ca test chuyển sang đỏ (Chương 5, mục 5.3.3; Chương 8, mục 8.7).
 
 > Số liệu này cần chạy lại bằng `dotnet test` ngay trước khi nộp báo cáo.
 
@@ -1496,7 +1498,7 @@ Phần lõi nghiệp vụ (nhập hàng, bán hàng, sổ kho, xử lý đồng 
 
 | # | Hạn chế | Bằng chứng | Hướng khắc phục (đề xuất) |
 |---|---|---|---|
-| 1 | **Sổ kho không đầy đủ.** Tạo sản phẩm kèm tồn đầu kỳ, và sửa sản phẩm với trường tồn kho (`PUT /api/products/{id}`) đặt thẳng `Products.StockQuantity` mà không sinh dòng `StockMovements`. Giá trị tồn và sổ kho vì thế có thể lệch nhau. Ngoài ra form sửa gửi lại giá trị tồn đã đọc lúc mở form; nếu lưu muộn sau khi có đơn bán, giá trị cũ ghi đè tồn mới (suy ra từ code, **chưa chạy thử**; đường sửa này không kiểm tra `RowVersion` của phía client) | `ProductService.cs`, dòng `existing.StockQuantity = product.StockQuantity` trong `UpdateProductAsync`; `UpdateProductDto.Quantity`; `ProductProfile.cs`; không có tham chiếu `StockMovement` trong `ProductService`; trường "Tồn kho" trong `Products/ProductForm.razor` | Bỏ trường tồn khỏi thao tác sửa, chỉ đổi tồn qua `adjust-stock` hoặc `set-stock` (đã ghi sổ); đặt tồn đầu kỳ bằng một dòng `Adjustment` hoặc một phiếu nhập; thêm test so khớp tổng sổ kho với `StockQuantity` |
+| 1 | **Dữ liệu cũ thiếu dòng sổ kho.** Từ khi sửa lỗi sổ kho (mục 8.7) mọi đường đổi tồn đều ghi sổ, nhưng sản phẩm đã có trước đó thì không có dòng giải thích tồn của chúng: các sản phẩm mẫu chèn bởi migration (`HasData`) và sản phẩm tạo bằng bản cũ. Với chúng, tổng `Quantity` của sổ kho không bằng `StockQuantity`; chưa có migration bù | `AppDbContext.OnModelCreating` (`HasData` đặt `StockQuantity` trực tiếp); migration `SeedInitialData`, `MoreSeedData`; `StockLedgerReconciliationTests` chỉ phủ sản phẩm tạo qua API | Migration bù một dòng `Adjustment` (`RefType = "InitialStock"`) cho mỗi sản phẩm có tồn mà chưa có dòng sổ; hoặc tách dữ liệu mẫu khỏi migration (hạn chế 19) |
 | 2 | **Chưa có chức năng hủy đơn bán.** `SalesOrderStatus.Cancelled` có trong enum và được truy vấn báo cáo lọc ra, nhưng không có đoạn mã nào đặt trạng thái này. Xóa đơn (`DELETE /api/sales-orders/{id}`, chỉ `Admin`) xóa cứng đơn và dòng hàng, **không hoàn tồn và không ghi sổ kho** | `SalesOrderService.DeleteOrderAsync`; chú thích "stock is not restored" trong `SalesOrdersController` | Thêm thao tác hủy đơn: đổi trạng thái, hoàn tồn và ghi dòng sổ kho trong một giao dịch; bỏ hoặc hạn chế xóa cứng |
 | 3 | **Sản phẩm xóa cứng.** Sản phẩm chưa có chứng từ bị xóa hẳn (đã có chứng từ thì bị chặn, HTTP 409, xem mục 8.7). `Product.IsActive` là cờ "ngừng kinh doanh" riêng, không phải xóa mềm | `ProductService.DeleteProductAsync` | Dùng `IsActive = false` làm cách xóa mặc định |
 | 4 | **Loại biến động không nhất quán khi đảo phiếu nhập.** Hủy phiếu đã duyệt ghi dòng `Adjustment`, nhưng xóa phiếu đã duyệt ghi dòng `Sale` | `PurchaseOrderService.CancelPurchaseOrderAsync` và `DeletePurchaseOrderAsync` (gọi `ReverseStockAsync` với hai loại khác nhau) | Thêm loại `Reversal` hoặc thống nhất một loại |
@@ -1549,17 +1551,19 @@ Phần lõi nghiệp vụ (nhập hàng, bán hàng, sổ kho, xử lý đồng 
 
 ## 8.7. Các lỗi tìm thấy khi rà soát báo cáo và đã sửa
 
-Trong quá trình đối chiếu báo cáo với mã nguồn, hai lỗi thật đã được phát hiện, sửa và có test riêng (xem Chương 5, mục 5.3.3):
+Trong quá trình đối chiếu báo cáo với mã nguồn, ba lỗi thật đã được phát hiện, sửa và có test riêng (xem Chương 5, mục 5.3.3):
 
 1. **Đăng ký công khai cho phép chọn vai trò `Admin`.** Trước khi sửa, `POST /api/auth/register` không cần đăng nhập và nhận vai trò từ nội dung yêu cầu, nên người lạ tự tạo được tài khoản quản trị. Nay `AuthController.Register` chỉ cấp vai trò `BanHang` cho người chưa đăng nhập; vai trò khác cần token `Admin`. Test: `RegistrationSecurityTests`.
 2. **Xóa sản phẩm đã có chứng từ.** Trước khi sửa, thao tác này không được kiểm tra trước nên khóa ngoại thất bại và API không trả thông báo nghiệp vụ (giao diện đã sẵn có thông báo cho mã 409 nhưng API không trả mã đó). Nay `ProductService.DeleteProductAsync` kiểm tra bằng `IProductRepository.HasDocumentsAsync` và trả 409 kèm gợi ý chuyển sang ngừng kinh doanh. Test: `ProductDeleteTests`.
 
-Cách kiểm chứng: gỡ tạm các thay đổi trong `src/`, hai lớp test mới có 6 ca đỏ; khôi phục thì toàn bộ bộ test xanh (644 test, 1 bỏ qua). Điều đáng rút ra là bộ test cũ không phát hiện được lỗi thứ nhất vì chính hàm hỗ trợ của test dùng lỗ hổng đó để tạo tài khoản Admin và Kho (xem hạn chế 24). Hạn chế 1 của mục 8.1 được tìm thấy theo cùng cách (đọc mã), **chưa được sửa**.
+3. **Sổ kho không đầy đủ.** Trước khi sửa, tạo sản phẩm kèm tồn đầu kỳ và sửa sản phẩm với trường tồn kho (`PUT /api/products/{id}`) đặt thẳng `Products.StockQuantity` mà không ghi `StockMovements`, nên tồn và sổ kho có thể lệch. Form sửa còn gửi lại giá trị tồn đã đọc lúc mở, nên lưu muộn sau một đơn bán thì ghi đè đơn bán đó. Nay `CreateProductAsync` ghi một dòng `Adjustment` (`RefType = "InitialStock"`) cùng giao dịch khi tồn đầu kỳ lớn hơn 0; `UpdateProductAsync` bỏ qua trường `quantity` (ô "Tồn kho" của form sửa bị vô hiệu hóa); xóa sản phẩm chỉ có dòng tồn đầu kỳ thì dọn dòng đó cùng giao dịch. Test: `StockLedgerReconciliationTests` (năm ca, gồm một ca đối soát: nhập, bán, điều chỉnh và sửa rồi tổng sổ kho phải bằng tồn).
+
+Cách kiểm chứng: gỡ tạm các thay đổi trong `src/`, ba lớp test mới có 10 ca đỏ (6 ca của hai lỗi đầu và 4 ca của lỗi sổ kho); khôi phục thì toàn bộ bộ test xanh (649 test, 1 bỏ qua). Khi sửa lỗi thứ ba, hàm dọn dẹp của `SqlInjectionTests` và test xóa sản phẩm của chính tôi vỡ vì sản phẩm tạo qua API giờ có dòng sổ kho; cả hai được sửa theo. Điều đáng rút ra là bộ test cũ không phát hiện được lỗi thứ nhất vì chính hàm hỗ trợ của test dùng lỗ hổng đó để tạo tài khoản Admin và Kho (xem hạn chế 24). Lỗi thứ ba cũng được tìm thấy khi đọc mã chứ không do test.
 
 ## 8.8. Hướng phát triển (đề xuất, chưa cài đặt)
 
 **Ngắn hạn: làm cho dữ liệu đáng tin cậy** (xử lý hạn chế 1, 2, 4, 8, 14, 19)
-- Chặn mọi đường đổi tồn không ghi sổ; thêm thao tác hủy đơn bán có hoàn kho.
+- Bù dòng sổ kho cho dữ liệu có trước bản sửa; thêm thao tác hủy đơn bán có hoàn kho.
 - Thêm danh sách phiếu nhập và đơn bán trên giao diện, kèm nút duyệt, hủy, in hóa đơn.
 - Nâng cấp `AutoMapper`; tách dữ liệu mẫu khỏi migration.
 
@@ -1573,7 +1577,7 @@ Cách kiểm chứng: gỡ tạm các thay đổi trong `src/`, hai lớp test m
 
 ## 8.9. Nhận xét chung
 
-Phần lõi của hệ thống, gồm nhập hàng, bán hàng, sổ kho và xử lý đồng thời, có test chạy trên SQL Server thật (Chương 5). Giá trị của đồ án nằm ở phần này. Tuy vậy, giao diện chưa phản ánh hết các chức năng của API (mục 8.2), sổ kho còn một đường đổi tồn không ghi sổ (hạn chế 1), và một số cơ chế bảo mật mới ở mức ghi nhận chứ chưa ở mức chặn (hạn chế 11 và 12). Các điểm này cần được trình bày đúng như vậy khi bảo vệ.
+Phần lõi của hệ thống, gồm nhập hàng, bán hàng, sổ kho và xử lý đồng thời, có test chạy trên SQL Server thật (Chương 5). Giá trị của đồ án nằm ở phần này. Tuy vậy, giao diện chưa phản ánh hết các chức năng của API (mục 8.2), sổ kho của dữ liệu có trước bản sửa còn thiếu dòng giải thích (hạn chế 1), và một số cơ chế bảo mật mới ở mức ghi nhận chứ chưa ở mức chặn (hạn chế 11 và 12). Các điểm này cần được trình bày đúng như vậy khi bảo vệ.
 
 ---
 
@@ -1589,7 +1593,7 @@ Phần cốt lõi đã đạt được:
 - **Tồn kho không âm khi nhiều người bán cùng lúc,** dựa trên ba lớp bảo vệ: kiểm tra trong service trong một giao dịch, khóa lạc quan `RowVersion` kèm vòng thử lại, và ràng buộc CHECK ở cơ sở dữ liệu. Điều này được kiểm chứng bằng test chạy trên SQL Server thật.
 - **Phân quyền ba vai trò** trên JWT, có kiểm thử ma trận quyền.
 - **Trợ lý AI** dùng công cụ tra cứu dữ liệu thật và tìm tài liệu chính sách (RAG), với các lớp bảo vệ ở phía máy chủ (che bí mật, giới hạn chi phí và tần suất).
-- **Kiểm thử tự động:** 644 test, 643 đạt, 0 lỗi, 1 bỏ qua.
+- **Kiểm thử tự động:** 649 test, 648 đạt, 0 lỗi, 1 bỏ qua.
 
 ## 9.2. Bài học
 
@@ -1601,11 +1605,11 @@ Phần cốt lõi đã đạt được:
 
 ## 9.3. Hạn chế
 
-Hệ thống còn các hạn chế đã trình bày ở Chương 8, đáng kể nhất là: sổ kho chưa phủ đường sửa sản phẩm và tồn đầu kỳ, chưa có chức năng hủy đơn bán, nhiều chức năng của API chưa có trên giao diện, bảo mật đăng nhập mới ở mức ghi nhận chứ chưa chặn, và chưa kiểm chứng trợ lý với mô hình thật cũng như triển khai trên máy chủ thật.
+Hệ thống còn các hạn chế đã trình bày ở Chương 8, đáng kể nhất là: dữ liệu có trước bản sửa sổ kho còn thiếu dòng giải thích tồn, chưa có chức năng hủy đơn bán, nhiều chức năng của API chưa có trên giao diện, bảo mật đăng nhập mới ở mức ghi nhận chứ chưa chặn, và chưa kiểm chứng trợ lý với mô hình thật cũng như triển khai trên máy chủ thật.
 
 ## 9.4. Hướng phát triển
 
-Ngắn hạn là đóng các đường đổi tồn không ghi sổ, thêm hủy đơn bán có hoàn kho và bổ sung các trang giao diện còn thiếu. Trung hạn là refresh token, giới hạn tần suất đăng nhập, nhật ký kiểm toán và TLS trong triển khai. Dài hạn là nhiều kho, thanh toán và công nợ, cơ sở dữ liệu vector cho tìm kiếm tài liệu (Chương 8, mục 8.8). Các mục này là đề xuất, chưa được cài đặt.
+Ngắn hạn là bù sổ kho cho dữ liệu cũ, thêm hủy đơn bán có hoàn kho và bổ sung các trang giao diện còn thiếu. Trung hạn là refresh token, giới hạn tần suất đăng nhập, nhật ký kiểm toán và TLS trong triển khai. Dài hạn là nhiều kho, thanh toán và công nợ, cơ sở dữ liệu vector cho tìm kiếm tài liệu (Chương 8, mục 8.8). Các mục này là đề xuất, chưa được cài đặt.
 
 ---
 

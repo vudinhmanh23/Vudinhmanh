@@ -81,7 +81,7 @@ Cột "Mức cài đặt" ghi nơi chức năng dùng được: **API** (có end
 | Mã | Yêu cầu | Cách đáp ứng và kiểm chứng |
 |---|---|---|
 | NFR-01 | **Toàn vẹn tồn kho:** tồn không âm | Kiểm tra trong service, `RowVersion`, ràng buộc CHECK; test đồng thời trên SQL Server thật (Chương 4, 5) |
-| NFR-02 | **Truy vết biến động kho** | Bảng `StockMovements` cho nhập, bán, điều chỉnh (chưa phủ đường sửa sản phẩm, xem Chương 8) |
+| NFR-02 | **Truy vết biến động kho** | Bảng `StockMovements` cho nhập, bán, điều chỉnh (kể cả tồn đầu kỳ khi tạo sản phẩm; sửa sản phẩm không đổi tồn; dữ liệu có trước bản sửa xem Chương 8) |
 | NFR-03 | **Xác thực và phân quyền** | JWT, ba vai trò, kiểm thử ma trận quyền |
 | NFR-04 | **Bảo vệ bí mật** | Bí mật chỉ từ biến môi trường ở Production; che bí mật trong log và trong nội dung gửi tới mô hình AI |
 | NFR-05 | **Kiểm soát chi phí trợ lý AI** | Giới hạn token, độ dài câu hỏi, số vòng công cụ, tần suất mỗi người dùng; ghi chi phí ước tính vào log |

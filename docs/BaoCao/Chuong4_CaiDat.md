@@ -52,7 +52,7 @@ Quy tắc phụ thuộc: `Domain` không tham chiếu project nào; `Application
 
 ### 4.3.1. Sổ kho `StockMovement`
 
-Các luồng nghiệp vụ đổi tồn kho (duyệt, hủy, xóa phiếu nhập; bán; điều chỉnh) ghi một dòng vào `StockMovements` cùng giao dịch với việc đổi `Products.StockQuantity`. Hai đường đổi tồn **không** ghi sổ: đặt tồn đầu kỳ khi tạo sản phẩm (`CreateProductAsync`) và ghi đè `StockQuantity` bằng giá trị client gửi khi sửa sản phẩm (`ProductService.UpdateProductAsync`, dòng `existing.StockQuantity = product.StockQuantity`); xem Chương 8. Mỗi dòng lưu số lượng có dấu (`Quantity`), tồn sau khi đổi (`StockAfter`), loại biến động (`StockMovementType`: `Import`, `Sale`, `Adjustment`) và chứng từ nguồn (`RefType`, `RefId`, `Reference`).
+Mọi đường đổi tồn kho đều ghi một dòng vào `StockMovements` cùng giao dịch với việc đổi `Products.StockQuantity`: duyệt, hủy, xóa phiếu nhập; bán; điều chỉnh; và đặt tồn đầu kỳ khi tạo sản phẩm (`ProductService.CreateProductAsync`, dòng `Adjustment` với `RefType = "InitialStock"`, chỉ ghi khi tồn đầu kỳ lớn hơn 0). Sửa sản phẩm (`UpdateProductAsync`) cố ý **không** đổi `StockQuantity`: trường `quantity` của yêu cầu bị bỏ qua, vì một giá trị ghi thẳng sẽ không có dòng sổ nào giải thích và một form mở trước một đơn bán sẽ ghi đè đơn bán đó. Trên giao diện, ô "Tồn kho" của form sửa bị vô hiệu hóa. Xóa sản phẩm chỉ có dòng tồn đầu kỳ thì dọn các dòng đó cùng giao dịch; có chứng từ nào khác thì bị chặn (HTTP 409). Mỗi dòng lưu số lượng có dấu (`Quantity`), tồn sau khi đổi (`StockAfter`), loại biến động (`StockMovementType`: `Import`, `Sale`, `Adjustment`) và chứng từ nguồn (`RefType`, `RefId`, `Reference`).
 
 | Tình huống | Nơi cài đặt | Dòng sổ kho |
 |---|---|---|
@@ -60,6 +60,7 @@ Các luồng nghiệp vụ đổi tồn kho (duyệt, hủy, xóa phiếu nhập
 | Hủy phiếu nhập đã duyệt | `PurchaseOrderService.CancelPurchaseOrderAsync` | `Adjustment`, số âm |
 | Xóa phiếu nhập đã duyệt | `PurchaseOrderService.DeletePurchaseOrderAsync` | `Sale`, số âm (khác với hủy, xem Chương 8) |
 | Tạo đơn bán | `SalesOrderService.PlaceOrderAsync` | `Sale`, số âm, `RefType = "SalesOrder"` |
+| Tạo sản phẩm có tồn đầu kỳ | `ProductService.CreateProductAsync` | `Adjustment`, số dương, `RefType = "InitialStock"`, `RefId = 0` |
 | Điều chỉnh tay hoặc kiểm kê | `StockMovementService.ApplyAsync` | `Adjustment`, `RefType = "ManualAdjustment"`, `RefId = 0`, ghi chú là lý do bắt buộc |
 
 ### 4.3.2. Giao dịch và an toàn khi đồng thời
